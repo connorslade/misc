@@ -1,12 +1,12 @@
 # Scripts
-✨ Misc Scripts for linux
+✨ Misc Scripts for Linux
 
 ```python
 .
 ├── Build
 │   └── CMakeBuild.sh      # Build CMake Projects
 ├── Display
-│   └── setDisplaySize.sh  # Set Display Reslution
+│   └── setDisplaySize.sh  # Set Display Resolution
 ├── Github
 │   └── ezHash.py          # Create a Markdown table of file hashes
 └── Gui

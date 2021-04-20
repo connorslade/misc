@@ -73,6 +73,7 @@ def markdownTabelFromDict(data, names, filePath):
 def main():
     DebugPrint('Main', 'Starting...', 'green')
     path = getSupplyesFilePath(sys.argv)
+    if path == '': return
     allHashes = hashFileByPath(path)
     markdown = markdownTabelFromDict(allHashes, ['Hash', 'Value'], path)
     DebugPrint('MarkDown', 'Copy and paste to github!', 'green')
