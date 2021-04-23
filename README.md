@@ -4,7 +4,7 @@
 ```python
 .
 ├── Build
-│   └── CMakeBuild.sh      # Build CMake Projects
+│   └── cMakeBuild.sh      # Build CMake Projects
 ├── Display
 │   └── setDisplaySize.sh  # Set Display Resolution
 ├── Github
