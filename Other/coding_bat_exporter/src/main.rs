@@ -46,7 +46,7 @@ struct Args {
 struct Problem {
     document: String,
     hint: String,
-    cases: Vec<(String, String)>,
+    cases: Vec<(Vec<String>, String)>,
     code: String,
     tags: Vec<String>,
 }
@@ -137,8 +137,11 @@ fn main() {
                 cases: cases
                     .lines()
                     .map(|x| {
-                        let parts = x.split_once(',').unwrap();
-                        (parts.0.trim().to_owned(), parts.1.trim().to_owned())
+                        let parts = x.rsplit_once(',').unwrap();
+                        (
+                            parts.0.split(",").map(|x| x.trim().to_owned()).collect(),
+                            parts.1.trim().to_owned(),
+                        )
                     })
                     .collect(),
                 code,
