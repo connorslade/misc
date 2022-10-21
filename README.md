@@ -1,6 +1,6 @@
 # Scripts
 
-✨ Misc Scripts for Linux
+✨ Misc Scripts for Linux (and a bit for windows)
 
 ```python
 .
