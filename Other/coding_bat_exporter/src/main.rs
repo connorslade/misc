@@ -1,14 +1,25 @@
-use std::io::{stdout, Write};
+use std::{collections::HashMap, fs};
 
 use clap::Parser;
 use colored::Colorize;
+use indicatif::ProgressBar;
 use lazy_static::lazy_static;
 use scraper::{Html, Selector};
-use ureq::{Agent, AgentBuilder};
+use serde::Serialize;
+use serde_json::json;
+use ureq::AgentBuilder;
 
 lazy_static! {
+    // Author Page
     static ref PROBLEM_SELECTOR: Selector =
         Selector::parse("body > ul:nth-child(9) > li > a").unwrap();
+
+    // Problem Page
+    static ref PROBLEM_DOC_SELECTOR: Selector = Selector::parse("#tadoc").unwrap();
+    static ref PROBLEM_HINT_SELECTOR: Selector = Selector::parse("#tahint").unwrap();
+    static ref PROBLEM_CASE_SELECTOR: Selector = Selector::parse("#tacases").unwrap();
+    static ref PROBLEM_CODE_SELECTOR: Selector = Selector::parse("#tacode").unwrap();
+    static ref PROBLEM_TAGS_SELECTOR: Selector = Selector::parse("textarea[name=\"tags\"]").unwrap();
 }
 
 #[derive(Parser, Debug)]
@@ -25,9 +36,20 @@ struct Args {
     /// Codingbat password
     #[arg(required(true))]
     password: String,
+
+    /// Output File
+    #[arg(required(true))]
+    out_file: String,
 }
 
-struct Problem {}
+#[derive(Serialize)]
+struct Problem {
+    document: String,
+    hint: String,
+    cases: Vec<(String, String)>,
+    code: String,
+    tags: Vec<String>,
+}
 
 fn main() {
     let args = Args::parse();
@@ -35,6 +57,7 @@ fn main() {
     let agent = AgentBuilder::new().redirects(0).build();
 
     // Get session ID
+    println!("[*] Logging in");
     let message = agent
         .post(&format!("{}/login", args.base_path))
         .query("uname", &args.username)
@@ -44,7 +67,7 @@ fn main() {
         .header("Location")
         .unwrap()
         .split_once("message=")
-        .map(|x| x.1.replace("+", " "));
+        .map(|x| x.1.replace('+', " "));
 
     if let Some(i) = message {
         println!("{}", format!("[-] Error: `{i}`").red());
@@ -52,6 +75,7 @@ fn main() {
     }
 
     // Get all authored problems
+    println!("[*] Getting authors problems");
     let problems_page = agent
         .get(&format!("{}/author", args.base_path))
         .call()
@@ -62,12 +86,72 @@ fn main() {
     let problems_html = Html::parse_document(&problems_page);
     let problem_ids = problems_html
         .select(&PROBLEM_SELECTOR)
-        .map(|x| x.value().attr("href").unwrap().rsplit_once("/").unwrap().1);
+        .map(|x| x.value().attr("href").unwrap().rsplit_once('/').unwrap().1)
+        .collect::<Vec<_>>();
 
     // Get problems
+    println!("[*] Downloading Problems");
+    let progress = ProgressBar::new(problem_ids.len() as u64);
+    let mut final_problems = HashMap::new();
+
     for i in problem_ids {
-        
+        let problem_html = agent
+            .get(&format!("{}/author/{i}", args.base_path))
+            .call()
+            .unwrap()
+            .into_string()
+            .unwrap();
+        let problem = Html::parse_document(&problem_html);
+
+        let document = problem
+            .select(&PROBLEM_DOC_SELECTOR)
+            .next()
+            .unwrap()
+            .inner_html();
+        let hint = problem
+            .select(&PROBLEM_HINT_SELECTOR)
+            .next()
+            .unwrap()
+            .inner_html();
+        let cases = problem
+            .select(&PROBLEM_CASE_SELECTOR)
+            .next()
+            .unwrap()
+            .inner_html();
+        let code = problem
+            .select(&PROBLEM_CODE_SELECTOR)
+            .next()
+            .unwrap()
+            .inner_html();
+        let tags = problem
+            .select(&PROBLEM_TAGS_SELECTOR)
+            .next()
+            .unwrap()
+            .inner_html();
+
+        final_problems.insert(
+            i,
+            Problem {
+                document,
+                hint,
+                cases: cases
+                    .lines()
+                    .map(|x| {
+                        let parts = x.split_once(',').unwrap();
+                        (parts.0.trim().to_owned(), parts.1.trim().to_owned())
+                    })
+                    .collect(),
+                code,
+                tags: tags.lines().map(|x| x.trim().to_owned()).collect(),
+            },
+        );
+
+        progress.inc(1);
     }
 
     // Save problems
+    progress.finish_and_clear();
+    println!("[*] Saving");
+    fs::write(args.out_file, json!(final_problems).to_string()).unwrap();
+    println!("[*] Done!");
 }

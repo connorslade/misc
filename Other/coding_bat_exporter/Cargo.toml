@@ -11,5 +11,7 @@ colored = "2.0.0"
 indicatif = "0.17.1"
 lazy_static = "1.4.0"
 scraper = "0.13.0"
+serde = { version = "1.0.146", features = ["derive"] }
+serde_derive = "1.0.146"
 serde_json = "1.0.87"
 ureq = {version = "2.5.0", features = ["cookies"]}
