@@ -81,3 +81,8 @@ return
 !+NumpadDiv::
     Send, >!>{PrintScreen}
 return
+
+!+NumpadDel::
+!+NumpadDot::
+    Send, {NumLock}
+return
