@@ -1,136 +1,171 @@
-use std::{
-    collections::{HashMap, HashSet},
-    fs,
-};
+use std::{collections::HashMap, fs, path::Path};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
+use indicatif::ParallelProgressIterator;
 use lazy_static::lazy_static;
+use rayon::prelude::*;
+use regex::Regex;
 use scraper::{Html, Selector};
 
 lazy_static! {
-    static ref REVISION_LIST_SELECTOR: Selector =
-        Selector::parse("ul:nth-child(29) > li > a").unwrap();
+    static ref LAST_UPDATE_REGEX: Regex =
+        Regex::new(r"Requirements last updated in: (\d{4})").unwrap();
     static ref BADGE_SELECTOR: Selector = Selector::parse("li > strong > a").unwrap();
-    static ref REQUIREMENT_TITLE_SELECTOR: Selector =
-        Selector::parse("p.center > a, h3.center > a, font").unwrap();
+    static ref CONTENT_SELECTOR: Selector = Selector::parse("#requirements > ol").unwrap();
+    static ref VERSION_SELECTOR: Selector = Selector::parse("#version > p:nth-child(2)").unwrap();
+    static ref TITLE_SELECTOR: Selector =
+        Selector::parse("table.center > tbody > tr > td > h1").unwrap();
+    static ref ICON_SELECTOR: Selector =
+        Selector::parse("table.center > tbody > tr > td:nth-child(2) > img, table.center > tbody > tr > td:nth-child(2) > p > img").unwrap();
 }
 
+const BASE_PAGE: &str = "http://usscouts.org";
 const MERIT_BADGE_HOME: &str = "http://usscouts.org/usscouts/meritbadges.asp";
 
-fn main() {
-    println!("[*] Loading owned badges");
-    let raw_owned = fs::read_to_string("owned.csv").unwrap();
-    let owned = raw_owned
+const OUT_DIR: &str = "out_md";
+const OWNED_FILE: &str = "owned.csv";
+
+fn main() -> Result<()> {
+    let out_dir = Path::new(OUT_DIR);
+    if !out_dir.exists() {
+        fs::create_dir(out_dir)?;
+    }
+
+    // (book, date)
+    let owned = fs::read_to_string(OWNED_FILE)?;
+    let owned = owned
         .lines()
         .skip(1)
-        .filter_map(|x| x.split_once(","))
+        .filter_map(|x| x.split_once(','))
         .collect::<Vec<_>>();
-    println!(" └ Found {} badges", owned.len());
 
     println!("[*] Loading Badges");
-    let (badges, revisions) = get_revisions().unwrap();
-    println!(" ├ Found {} badges", badges.len());
-    println!(" └ Found {} revisions", revisions.len());
+    let badges = get_badges()?
+        .par_iter()
+        .progress()
+        .filter_map(|x| load_badge(&x.1).ok())
+        .collect::<Vec<_>>();
 
-    println!("[*] Loading revisions");
-    let mut rev_dates = HashMap::new();
-    let mut badges = Vec::new();
-    for i in revisions.into_iter().filter(|x| x.year >= 2002) {
-        print!(" ├ {}", i.year);
-        let rev = load_revision(&i, &badges).unwrap();
-        println!(" ({})", rev.len());
+    println!("[*] Writing Markdown");
 
-        for j in rev {
-            badges.push(j.clone());
-            rev_dates
-                .entry(j)
-                .and_modify(|x| *x = i.year.max(*x))
-                .or_insert(i.year);
-        }
-    }
-
-    println!("[*] Processing");
-    badges.sort();
-    badges.dedup();
-    for i in owned
-        .into_iter()
-        .map(|x| (x.0, x.1.parse::<u16>().unwrap()))
-    {
-        let badge = match best(i.0, &badges) {
-            Some(i) => i,
-            None => continue,
-        };
-
-        let last_update = rev_dates.get(badge).unwrap();
-        if i.1 >= *last_update {
-            println!("Up to date: {}", i.0);
-            continue;
+    owned.par_iter().progress().for_each(|x| {
+        let date = x.1.parse::<u16>().unwrap();
+        let badge = x.0.to_lowercase();
+        let badge = best(&badge, &badges, |x| x.name.to_owned()).unwrap();
+        if date >= badge.update_date {
+            return;
         }
 
-        println!("Outdated: {} ({}) [{}]", i.0, i.1, last_update);
-    }
+        let out = include_str!("./template.md")
+            .replace("{{TITLE}}", &badge.name)
+            .replace("{{IMAGE_LINK}}", &badge.icon_link)
+            .replace("{{BOOK_DATE}}", date.to_string().as_str())
+            .replace("{{UPDATE_DATE}}", badge.update_date.to_string().as_str())
+            .replace("{{REQUIREMENTS}}", &badge.requirements);
+        fs::write(out_dir.join(format!("{}-{}.md", badge.name, date)), out).unwrap();
+    });
+
+    Ok(())
 }
 
-#[derive(Debug)]
-struct Revision {
-    year: u16,
-    link: String,
-}
-
-fn load_revision(rev: &Revision, badges: &[String]) -> Result<HashSet<String>> {
-    let raw_page = ureq::get(&format!("http://usscouts.org/usscouts/{}", rev.link))
-        .call()?
-        .into_string()?;
+// (Name, Link)
+fn get_badges() -> Result<Vec<(String, String)>> {
+    let raw_page = ureq::get(MERIT_BADGE_HOME).call()?.into_string()?;
     let dom = Html::parse_document(&raw_page);
+    let mut out = Vec::new();
 
-    let mut out = HashSet::new();
-    for i in dom.select(&REQUIREMENT_TITLE_SELECTOR) {
-        let mut name = collapse_whitespace(i.text().collect::<String>().as_str())
-            .replace(|x: char| matches!(x, ',' | ':'), "");
-        if name.contains('-') {
-            name = name.split_once('-').unwrap().0.to_owned();
+    for i in dom.select(&BADGE_SELECTOR) {
+        let mut link = i
+            .value()
+            .attr("href")
+            .with_context(|| "No href value on link")?
+            .to_owned();
+        let name = collapse_whitespace(i.text().next().with_context(|| "No text content on link")?)
+            .to_lowercase();
+
+        if !link.starts_with("/") {
+            link = format!("/{}", link);
         }
 
-        if !is_badge(badges, &name) {
-            continue;
-        }
-
-        out.insert(name.trim().to_owned());
+        out.push((name, format!("{}{}", BASE_PAGE, link)));
     }
 
     Ok(out)
 }
 
-/// Get links to all revision pages.
-/// (badges, revisions)
-fn get_revisions() -> Result<(Vec<String>, Vec<Revision>)> {
-    let raw_page = ureq::get(MERIT_BADGE_HOME).call()?.into_string()?;
-    let dom = Html::parse_document(&raw_page);
-
-    let badges = dom
-        .select(&BADGE_SELECTOR)
-        .map(|x| collapse_whitespace(x.text().next().unwrap()).to_lowercase())
-        .collect::<Vec<_>>();
-
-    let revisions = dom
-        .select(&REVISION_LIST_SELECTOR)
-        .filter_map(|x| {
-            Some(Revision {
-                year: x.text().next()?.split_once(' ')?.0.parse().ok()?,
-                link: x.value().attr("href")?.to_owned(),
-            })
-        })
-        .collect();
-
-    Ok((badges, revisions))
+#[derive(Debug)]
+struct BadgeData {
+    name: String,
+    icon_link: String,
+    update_date: u16,
+    requirements: String,
 }
 
-fn best<'a>(a: &'a str, b: &'a [String]) -> Option<&'a String> {
+fn load_badge(link: &str) -> Result<BadgeData> {
+    let raw_page = ureq::get(link).call()?.into_string()?;
+    let dom = Html::parse_document(&raw_page);
+
+    let content = collapse_whitespace(
+        &dom.select(&CONTENT_SELECTOR)
+            .next()
+            .with_context(|| "No content found")?
+            .html(),
+    );
+
+    let name = collapse_whitespace(
+        &dom.select(&TITLE_SELECTOR)
+            .next()
+            .with_context(|| "No title found")?
+            .text()
+            .collect::<String>(),
+    );
+
+    let icon_link = dom
+        .select(&ICON_SELECTOR)
+        .next()
+        .with_context(|| "No icon found")?
+        .value()
+        .attr("src")
+        .with_context(|| "No src attribute on icon")?
+        .to_owned();
+
+    let version = collapse_whitespace(
+        &dom.select(&VERSION_SELECTOR)
+            .next()
+            .with_context(|| "No version found")?
+            .text()
+            .collect::<String>(),
+    );
+    let version = LAST_UPDATE_REGEX
+        .captures(&version)
+        .with_context(|| "No update date found")?
+        .get(1)
+        .with_context(|| "Unable to extract update date")?
+        .as_str()
+        .parse::<u16>()?;
+
+    Ok(BadgeData {
+        name,
+        icon_link: format!(
+            "{BASE_PAGE}/mb{}{}",
+            if icon_link.starts_with("/") { "" } else { "/" },
+            icon_link
+        ),
+        update_date: version,
+        requirements: content,
+    })
+}
+
+fn collapse_whitespace(s: &str) -> String {
+    s.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn best<'a, T>(a: &'a str, b: &'a [T], transformer: fn(&T) -> String) -> Option<&'a T> {
     let mut best = 0.0;
     let mut best_str = None;
 
     for i in b {
-        let sim = similarity(a, i);
+        let sim = similarity(a, &transformer(i));
         if sim > best {
             best = sim;
             best_str = Some(i);
@@ -138,19 +173,6 @@ fn best<'a>(a: &'a str, b: &'a [String]) -> Option<&'a String> {
     }
 
     best_str
-}
-
-fn collapse_whitespace(s: &str) -> String {
-    s.split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
-fn is_badge(badges: &[String], name: &str) -> bool {
-    let skip = |x: char| x.is_whitespace() || matches!(x, ',' | ':');
-    let name = name.replace(skip, "").to_lowercase();
-    badges
-        .iter()
-        .map(|x| x.replace(skip, ""))
-        .any(|x| x == name)
 }
 
 pub fn similarity(str1: &str, str2: &str) -> f64 {
