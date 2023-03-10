@@ -53,7 +53,6 @@ struct Problem {
 
 fn main() {
     let args = Args::parse();
-
     let agent = AgentBuilder::new().redirects(0).build();
 
     // Get session ID
@@ -134,18 +133,9 @@ fn main() {
             Problem {
                 document,
                 hint,
-                cases: cases
-                    .lines()
-                    .map(|x| {
-                        let parts = x.rsplit_once(',').unwrap();
-                        (
-                            parts.0.split(",").map(|x| x.trim().to_owned()).collect(),
-                            parts.1.trim().to_owned(),
-                        )
-                    })
-                    .collect(),
+                cases: cases.lines().map(case_parser).collect(),
                 code,
-                tags: tags.lines().map(|x| x.trim().to_owned()).collect(),
+                tags: tags.split(' ').map(str::to_owned).collect(),
             },
         );
 
@@ -157,4 +147,32 @@ fn main() {
     println!("[*] Saving");
     fs::write(args.out_file, json!(final_problems).to_string()).unwrap();
     println!("[*] Done!");
+}
+
+fn case_parser(inp: &str) -> (Vec<String>, String) {
+    let mut args = Vec::new();
+    let mut in_quotes = false;
+    let mut in_array = false;
+    let mut working = String::new();
+
+    for i in inp.chars() {
+        match i {
+            '"' if !in_array => in_quotes ^= true,
+            '{' if !in_array && !in_quotes => {
+                in_array = true;
+                working.push('{');
+            }
+            '}' if in_array && !in_quotes => {
+                in_array = false;
+                working.push('}');
+            }
+            ',' if !in_quotes && !in_array => {
+                args.push(working.trim().to_owned());
+                working.clear();
+            }
+            _ => working.push(i),
+        }
+    }
+
+    (args, working.trim().to_owned())
 }
