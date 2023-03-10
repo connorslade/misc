@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.69"
+comrak = "0.16.0"
 indicatif = { version = "0.17.3", features = ["rayon"] }
 lazy_static = "1.4.0"
 rayon = "1.7.0"

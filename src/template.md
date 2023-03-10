@@ -1,7 +1,12 @@
 <style>
+    * {
+        font-family: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    }
+
     img.badge {
         float: right;
         margin-left: 10px;
+        margin-bottom: 10px;
     }
 </style>
 

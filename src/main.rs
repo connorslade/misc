@@ -1,6 +1,7 @@
 use std::{collections::HashMap, fs, path::Path};
 
 use anyhow::{Context, Result};
+use comrak::{markdown_to_html, ComrakOptions};
 use indicatif::ParallelProgressIterator;
 use lazy_static::lazy_static;
 use rayon::prelude::*;
@@ -8,6 +9,12 @@ use regex::Regex;
 use scraper::{Html, Selector};
 
 lazy_static! {
+    static ref COMRAK_OPTIONS: ComrakOptions = {
+        let mut options = ComrakOptions::default();
+        options.render.unsafe_ = true;
+        options.parse.smart = true;
+        options
+    };
     static ref LAST_UPDATE_REGEX: Regex =
         Regex::new(r"Requirements last updated in: (\d{4})").unwrap();
     static ref BADGE_SELECTOR: Selector = Selector::parse("li > strong > a").unwrap();
@@ -24,6 +31,7 @@ const MERIT_BADGE_HOME: &str = "http://usscouts.org/usscouts/meritbadges.asp";
 
 const OUT_DIR: &str = "out_md";
 const OWNED_FILE: &str = "owned.csv";
+// wkhtmltopdf --page-height 8.5in --page-width 5.5in "American Business-2008.html" out.pdf
 
 fn main() -> Result<()> {
     let out_dir = Path::new(OUT_DIR);
@@ -62,7 +70,13 @@ fn main() -> Result<()> {
             .replace("{{BOOK_DATE}}", date.to_string().as_str())
             .replace("{{UPDATE_DATE}}", badge.update_date.to_string().as_str())
             .replace("{{REQUIREMENTS}}", &badge.requirements);
-        fs::write(out_dir.join(format!("{}-{}.md", badge.name, date)), out).unwrap();
+
+        let rendered = markdown_to_html(&out, &*COMRAK_OPTIONS);
+        fs::write(
+            out_dir.join(format!("{}-{}.html", badge.name, date)),
+            rendered,
+        )
+        .unwrap();
     });
 
     Ok(())
