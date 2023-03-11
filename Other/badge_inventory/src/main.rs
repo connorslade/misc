@@ -7,6 +7,7 @@ use lazy_static::lazy_static;
 use rayon::prelude::*;
 use regex::Regex;
 use scraper::{Html, Selector};
+use serde::{Deserialize, Serialize};
 
 lazy_static! {
     static ref COMRAK_OPTIONS: ComrakOptions = {
@@ -31,6 +32,7 @@ const MERIT_BADGE_HOME: &str = "http://usscouts.org/usscouts/meritbadges.asp";
 
 const OUT_DIR: &str = "out_md";
 const OWNED_FILE: &str = "owned.csv";
+const CACHE_FILE: &str = "badge_cache.bin";
 // wkhtmltopdf --page-height 8.5in --page-width 5.5in "American Business-2008.html" out.pdf
 
 fn main() -> Result<()> {
@@ -48,11 +50,20 @@ fn main() -> Result<()> {
         .collect::<Vec<_>>();
 
     println!("[*] Loading Badges");
-    let badges = get_badges()?
-        .par_iter()
-        .progress()
-        .filter_map(|x| load_badge(&x.1).ok())
-        .collect::<Vec<_>>();
+    let path = Path::new(CACHE_FILE);
+    let badges = if path.exists() {
+        let raw = fs::read(path)?;
+        bincode::deserialize(&raw)?
+    } else {
+        let badges = get_badges()?
+            .par_iter()
+            .progress()
+            .filter_map(|x| load_badge(&x.1).ok())
+            .collect::<Vec<_>>();
+        let out = bincode::serialize(&badges)?;
+        fs::write(path, out)?;
+        badges
+    };
 
     println!("[*] Writing Markdown");
 
@@ -71,12 +82,19 @@ fn main() -> Result<()> {
             .replace("{{UPDATE_DATE}}", badge.update_date.to_string().as_str())
             .replace("{{REQUIREMENTS}}", &badge.requirements);
 
-        let rendered = markdown_to_html(&out, &*COMRAK_OPTIONS);
-        fs::write(
-            out_dir.join(format!("{}-{}.html", badge.name, date)),
-            rendered,
-        )
-        .unwrap();
+        let rendered = markdown_to_html(&out, &COMRAK_OPTIONS);
+        let mut path = out_dir.join(format!("{}-{}.html", badge.name.replace(' ', "-"), date));
+        let mut i = 1;
+        while path.exists() {
+            path.set_file_name(format!(
+                "{}-{}-{}.html",
+                badge.name.replace(' ', "-"),
+                date,
+                i
+            ));
+            i += 1;
+        }
+        fs::write(path, rendered).unwrap();
     });
 
     Ok(())
@@ -97,17 +115,17 @@ fn get_badges() -> Result<Vec<(String, String)>> {
         let name = collapse_whitespace(i.text().next().with_context(|| "No text content on link")?)
             .to_lowercase();
 
-        if !link.starts_with("/") {
-            link = format!("/{}", link);
+        if !link.starts_with('/') {
+            link = format!("/{link}");
         }
 
-        out.push((name, format!("{}{}", BASE_PAGE, link)));
+        out.push((name, format!("{BASE_PAGE}{link}")));
     }
 
     Ok(out)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 struct BadgeData {
     name: String,
     icon_link: String,
@@ -162,7 +180,7 @@ fn load_badge(link: &str) -> Result<BadgeData> {
         name,
         icon_link: format!(
             "{BASE_PAGE}/mb{}{}",
-            if icon_link.starts_with("/") { "" } else { "/" },
+            if icon_link.starts_with('/') { "" } else { "/" },
             icon_link
         ),
         update_date: version,
