@@ -33,12 +33,16 @@ const MERIT_BADGE_HOME: &str = "http://usscouts.org/usscouts/meritbadges.asp";
 const OUT_DIR: &str = "out_md";
 const OWNED_FILE: &str = "owned.csv";
 const CACHE_FILE: &str = "badge_cache.bin";
-// wkhtmltopdf --page-height 8.5in --page-width 5.5in "American Business-2008.html" out.pdf
 
 fn main() -> Result<()> {
     let out_dir = Path::new(OUT_DIR);
     if !out_dir.exists() {
         fs::create_dir(out_dir)?;
+    }
+
+    if fs::read_dir(out_dir)?.count() > 0 {
+        println!("Output directory is not empty, exiting");
+        return Ok(());
     }
 
     // (book, date)
@@ -66,7 +70,6 @@ fn main() -> Result<()> {
     };
 
     println!("[*] Writing Markdown");
-
     owned.par_iter().progress().for_each(|x| {
         let date = x.1.parse::<u16>().unwrap();
         let badge = x.0.to_lowercase();
@@ -97,6 +100,7 @@ fn main() -> Result<()> {
         fs::write(path, rendered).unwrap();
     });
 
+    println!("[*] Complete");
     Ok(())
 }
 
