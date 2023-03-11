@@ -25,7 +25,8 @@ lazy_static! {
         Selector::parse("table.center > tbody > tr > td > h1").unwrap();
     static ref ICON_SELECTOR: Selector =
         Selector::parse("table.center > tbody > tr > td:nth-child(2) > img, table.center > tbody > tr > td:nth-child(2) > p > img").unwrap();
-    static ref DISCONTINUED_SELECTOR: Selector = Selector::parse("tr > td:nth-child(1).red").unwrap();
+    static ref DISCONTINUED_SELECTOR: Selector = Selector::parse("tr > td:nth-child(1).red, tr > td:nth-child(1) > span.red, tr > td:nth-child(1).red > strong").unwrap();
+    static ref NOT_DISCONTINUED_SELECTOR: Selector = Selector::parse("tr > td:nth-child(1) > strong").unwrap();
 }
 
 pub fn load_badges() -> Result<Vec<BadgeData>> {
@@ -65,12 +66,20 @@ pub fn load_discontinued() -> Result<Vec<String>> {
     let raw_page = ureq::get(MERIT_BADGE_HISTORY).call()?.into_string()?;
     let dom = Html::parse_document(&raw_page);
 
-    Ok(dom
+    let mut out = dom
         .select(&DISCONTINUED_SELECTOR)
         .filter_map(|x| Some(collapse_whitespace(x.text().next()?)))
-        .collect::<Vec<_>>())
+        .collect::<Vec<_>>();
+
+    for i in dom.select(&NOT_DISCONTINUED_SELECTOR) {
+        let name = collapse_whitespace(i.text().next().with_context(|| "Element has no text")?);
+        out.retain(|x| x != &name);
+    }
+
+    Ok(out)
 }
 
+#[derive(Clone)]
 pub struct OwnedBadge {
     pub name: String,
     pub date: u16,

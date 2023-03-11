@@ -4,23 +4,21 @@
     }
 </style>
 
-# Badge Report
+# Merit Badge Books
 
 ## Stats
 
 - **Total Badges**: {{TOTAL_BADGES}}
 - **Total Books**: {{TOTAL_BOOKS}}
-- **Outdated Books**: {{OUTDATED_BOOKS}}
-- **Discontinued Books**: {{DISCONTINUED_BOOKS}}
 
-### Discontinued Books
+### Discontinued Books ({{DISCONTINUED_BOOKS}})
 
 {{DISCONTINUED_BADGES}}
 
-### Outdated Books
+### Outdated Books ({{OUTDATED_BOOKS}})
 
 {{OUTDATED_BADGES}}
 
-### Current Books
+### Current Books ({{CURRENT_BOOKS}})
 
 {{CURRENT_BADGES}}

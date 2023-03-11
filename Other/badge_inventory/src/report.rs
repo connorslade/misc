@@ -14,32 +14,47 @@ const OUT_FILE: &str = "report.html";
 pub fn run() -> Result<()> {
     println!("[*] Loading Badges");
     let owned = load_owned()?;
-    let discontinued = load_discontinued()?;
-    let badges = load_badges()?;
+    let badges = {
+        let mut out = Vec::new();
+        out.extend(
+            load_discontinued()?
+                .into_iter()
+                .map(|x| Badge::Discontinued(x)),
+        );
+        out.extend(
+            load_badges()?
+                .into_iter()
+                .map(|x| Badge::Existing(x.name, x.update_date)),
+        );
+        out
+    };
 
     println!("[*] Processing Badges");
     let mut reports = Vec::new();
 
     for i in owned.iter() {
         let badge = i.name.to_lowercase();
-        let badge = best(&badge, &badges, |x| x.name.to_owned()).unwrap();
-        if i.date >= badge.update_date {
+        let badge = best(&badge, &badges, |x| x.name().to_owned()).unwrap();
+
+        if matches!(badge, Badge::Discontinued(_)) {
             reports.push(BadgeReport {
-                name: badge.name.to_owned(),
-                status: BadgeStatus::Current,
+                name: badge.name().to_owned(),
+                status: BadgeStatus::Removed,
             });
             continue;
         }
 
-        let status = if discontinued.contains(&badge.name) {
-            BadgeStatus::Removed
-        } else {
-            BadgeStatus::Outdated
-        };
+        if badge.outdated(i.date) {
+            reports.push(BadgeReport {
+                name: badge.name().to_owned(),
+                status: BadgeStatus::Outdated,
+            });
+            continue;
+        }
 
         reports.push(BadgeReport {
-            name: badge.name.to_owned(),
-            status,
+            name: badge.name().to_owned(),
+            status: BadgeStatus::Current,
         });
     }
 
@@ -47,8 +62,11 @@ pub fn run() -> Result<()> {
     let discontinued_badges = filter_type(&reports, BadgeStatus::Removed);
     let outdated_badges = filter_type(&reports, BadgeStatus::Outdated);
     let current_badges = filter_type(&reports, BadgeStatus::Current);
+    let mut badges = owned.clone();
+    badges.dedup_by(|a, b| a.name.eq_ignore_ascii_case(&b.name));
 
     let markdown = include_str!("./templates/report.md")
+        .replacen("{{TOTAL_BADGES}}", badges.len().to_string().as_str(), 1)
         .replacen("{{TOTAL_BOOKS}}", owned.len().to_string().as_str(), 1)
         .replacen(
             "{{OUTDATED_BOOKS}}",
@@ -63,6 +81,11 @@ pub fn run() -> Result<()> {
         .replacen(
             "{{DISCONTINUED_BADGES}}",
             &book_list(&discontinued_badges),
+            1,
+        )
+        .replacen(
+            "{{CURRENT_BOOKS}}",
+            current_badges.len().to_string().as_str(),
             1,
         )
         .replacen("{{OUTDATED_BADGES}}", &book_list(&outdated_badges), 1)
@@ -89,12 +112,15 @@ fn book_list(items: &[&BadgeReport]) -> String {
     }
 
     let mut out = String::new();
+    let mut counts = counts.into_iter().collect::<Vec<_>>();
+    counts.sort();
+
     for (name, count) in counts {
         out.push_str(
             format!(
                 "* {}{}\n",
                 name,
-                if count > 0 {
+                if count > 1 {
                     format!(" x{}", count)
                 } else {
                     String::new()
@@ -117,4 +143,25 @@ enum BadgeStatus {
     Removed,
     Outdated,
     Current,
+}
+
+enum Badge {
+    Existing(String, u16),
+    Discontinued(String),
+}
+
+impl Badge {
+    fn name(&self) -> &str {
+        match self {
+            Badge::Existing(name, _) => name,
+            Badge::Discontinued(name) => name,
+        }
+    }
+
+    fn outdated(&self, year: u16) -> bool {
+        match self {
+            Badge::Existing(_, update_year) => year < *update_year,
+            Badge::Discontinued(_) => unreachable!(),
+        }
+    }
 }
