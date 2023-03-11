@@ -1,7 +1,7 @@
 use std::{fs, path::Path};
 
 use crate::misc::collapse_whitespace;
-use crate::{BASE_PAGE, CACHE_FILE, MERIT_BADGE_HOME};
+use crate::{CACHE_FILE, OWNED_FILE};
 
 use anyhow::{Context, Ok, Result};
 use indicatif::ParallelProgressIterator;
@@ -10,6 +10,10 @@ use rayon::prelude::*;
 use regex::Regex;
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
+
+const BASE_PAGE: &str = "http://usscouts.org";
+const MERIT_BADGE_HOME: &str = "http://usscouts.org/usscouts/meritbadges.asp";
+const MERIT_BADGE_HISTORY: &str = "http://www.usscouts.org/mb/history.asp";
 
 lazy_static! {
     static ref LAST_UPDATE_REGEX: Regex =
@@ -21,6 +25,7 @@ lazy_static! {
         Selector::parse("table.center > tbody > tr > td > h1").unwrap();
     static ref ICON_SELECTOR: Selector =
         Selector::parse("table.center > tbody > tr > td:nth-child(2) > img, table.center > tbody > tr > td:nth-child(2) > p > img").unwrap();
+    static ref DISCONTINUED_SELECTOR: Selector = Selector::parse("tr > td:nth-child(1).red").unwrap();
 }
 
 pub fn load_badges() -> Result<Vec<BadgeData>> {
@@ -38,6 +43,37 @@ pub fn load_badges() -> Result<Vec<BadgeData>> {
     let out = bincode::serialize(&badges)?;
     fs::write(path, out)?;
     Ok(badges)
+}
+
+pub fn load_owned() -> Result<Vec<OwnedBadge>> {
+    let owned = fs::read_to_string(OWNED_FILE)?;
+    Ok(owned
+        .lines()
+        .skip(1)
+        .filter_map(|x| {
+            let (name, date) = x.split_once(',')?;
+            let date = date.parse::<u16>().ok()?;
+            Some(OwnedBadge {
+                name: name.to_owned(),
+                date,
+            })
+        })
+        .collect::<Vec<_>>())
+}
+
+pub fn load_discontinued() -> Result<Vec<String>> {
+    let raw_page = ureq::get(MERIT_BADGE_HISTORY).call()?.into_string()?;
+    let dom = Html::parse_document(&raw_page);
+
+    Ok(dom
+        .select(&DISCONTINUED_SELECTOR)
+        .filter_map(|x| Some(collapse_whitespace(x.text().next()?)))
+        .collect::<Vec<_>>())
+}
+
+pub struct OwnedBadge {
+    pub name: String,
+    pub date: u16,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
