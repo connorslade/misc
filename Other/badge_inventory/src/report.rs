@@ -16,11 +16,7 @@ pub fn run() -> Result<()> {
     let owned = load_owned()?;
     let badges = {
         let mut out = Vec::new();
-        out.extend(
-            load_discontinued()?
-                .into_iter()
-                .map(|x| Badge::Discontinued(x)),
-        );
+        out.extend(load_discontinued()?.into_iter().map(Badge::Discontinued));
         out.extend(
             load_badges()?
                 .into_iter()

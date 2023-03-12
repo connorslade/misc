@@ -34,7 +34,7 @@ pub fn run() -> Result<()> {
             return;
         }
 
-        let out = include_str!("./templates/generate.md")
+        let out = include_str!("./templates/outdated.md")
             .replace("{{TITLE}}", &badge.name)
             .replace("{{IMAGE_LINK}}", &badge.icon_link)
             .replace("{{BOOK_DATE}}", x.date.to_string().as_str())

@@ -76,6 +76,9 @@ pub fn load_discontinued() -> Result<Vec<String>> {
         out.retain(|x| x != &name);
     }
 
+    // update your website :sob:
+    out.push("Medicine".to_owned());
+
     Ok(out)
 }
 
