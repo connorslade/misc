@@ -77,6 +77,7 @@ pub fn load_discontinued() -> Result<Vec<String>> {
     }
 
     // update your website :sob:
+    // Although the medicine row has a close date the text is not red
     out.push("Medicine".to_owned());
 
     Ok(out)
@@ -156,13 +157,20 @@ fn load_badge(link: &str) -> Result<BadgeData> {
             .text()
             .collect::<String>(),
     );
-    let version = LAST_UPDATE_REGEX
+    let mut version = LAST_UPDATE_REGEX
         .captures(&version)
         .with_context(|| "No update date found")?
         .get(1)
         .with_context(|| "Unable to extract update date")?
         .as_str()
         .parse::<u16>()?;
+
+    // http://www.usscouts.org/usscouts/mb/mb003.asp :sob:
+    // Text on the top of the page says "Requirements were REVISED effective January 1, 2022"
+    // but the footer says "Requirements last updated in: 2005"
+    if name.contains("Nation") {
+        version = 2022;
+    }
 
     Ok(BadgeData {
         name,
