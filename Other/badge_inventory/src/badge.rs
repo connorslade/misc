@@ -1,6 +1,6 @@
 use std::{fs, path::Path};
 
-use crate::misc::collapse_whitespace;
+use crate::misc::{collapse_whitespace, t};
 use crate::{CACHE_FILE, OWNED_FILE};
 
 use anyhow::{Context, Ok, Result};
@@ -34,7 +34,7 @@ pub fn load_badges() -> Result<Vec<BadgeData>> {
     if path.exists() {
         let raw = fs::read(path)?;
         return Ok(bincode::deserialize(&raw)?);
-    };
+    }
 
     let badges = get_badges()?
         .par_iter()
@@ -168,7 +168,7 @@ fn load_badge(link: &str) -> Result<BadgeData> {
         name,
         icon_link: format!(
             "{BASE_PAGE}/mb{}{}",
-            if icon_link.starts_with('/') { "" } else { "/" },
+            t(icon_link.starts_with('/'), "", "/"),
             icon_link
         ),
         update_date: version,

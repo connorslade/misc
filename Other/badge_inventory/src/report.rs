@@ -5,7 +5,7 @@ use comrak::markdown_to_html;
 
 use crate::{
     badge::{load_badges, load_discontinued, load_owned},
-    misc::best,
+    misc::{best, t},
     COMRAK_OPTIONS,
 };
 
@@ -116,11 +116,7 @@ fn book_list(items: &[&BadgeReport]) -> String {
             format!(
                 "* {}{}\n",
                 name,
-                if count > 1 {
-                    format!(" x{}", count)
-                } else {
-                    String::new()
-                }
+                t(count > 1, format!(" x{count}"), String::new())
             )
             .as_str(),
         );

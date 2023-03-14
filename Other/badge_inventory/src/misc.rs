@@ -46,3 +46,11 @@ pub fn similarity(str1: &str, str2: &str) -> f64 {
     }
     (2.0 * intersection_size as f64) / (str1.len() + str2.len() - 2) as f64
 }
+
+pub fn t<T>(expr: bool, a: T, b: T) -> T {
+    if expr {
+        return a;
+    }
+
+    b
+}
