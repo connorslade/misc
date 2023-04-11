@@ -116,6 +116,11 @@ fn get_badges() -> Result<Vec<(String, String)>> {
             link = format!("/{link}");
         }
 
+        // :sob:
+        if name == "geocaching" {
+            link = "/usscouts/mb/mb145.asp".to_owned();
+        }
+
         out.push((name, format!("{BASE_PAGE}{link}")));
     }
 
@@ -170,6 +175,10 @@ fn load_badge(link: &str) -> Result<BadgeData> {
     // but the footer says "Requirements last updated in: 2005"
     if name.contains("Nation") {
         version = 2022;
+    }
+
+    if name.contains("Shotgun") {
+        version = 2014;
     }
 
     Ok(BadgeData {
