@@ -1,4 +1,4 @@
-use afire::{Content, Method, Response, Server, trace::Level, trace};
+use afire::{trace, trace::Level, Content, Method, Response, Server};
 use app::App;
 
 mod app;
@@ -10,7 +10,7 @@ fn main() {
 
     server.stateful_route(Method::ANY, "**", |app, req| {
         println!("[*] Loading completion for `{}`", req.path);
-        let completion = app.completer.complete(&req);
+        let completion = app.completer.complete(&req).unwrap();
         Response::new()
             .content(Content::Custom(&completion.content_type))
             .bytes(&completion.body)

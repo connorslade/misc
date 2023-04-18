@@ -1,6 +1,6 @@
 use std::fs;
 
-use crate::completer::{completers::GPT3, Completer};
+use crate::completer::{completers::OpenAI, Completer};
 
 pub struct App {
     pub completer: Box<dyn Completer + Send + Sync + 'static>,
@@ -8,9 +8,9 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
-        let token = fs::read_to_string("./gpt3.key").unwrap();
+        let token = fs::read_to_string("./openai.key").unwrap();
         Self {
-            completer: Box::new(GPT3::new(token.trim())),
+            completer: Box::new(OpenAI::new(token.trim())),
         }
     }
 }

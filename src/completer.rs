@@ -6,11 +6,12 @@ pub struct Completion {
 }
 
 pub trait Completer {
-    fn complete(&self, req: &Request) -> Completion;
+    fn complete(&self, req: &Request) -> anyhow::Result<Completion>;
 }
 
 pub mod completers {
     use afire::Request;
+    use anyhow::Context;
     use serde_json::{json, Value};
 
     use super::{Completer, Completion};
@@ -21,14 +22,14 @@ pub mod completers {
 ---
 Content-Type:";
 
-    pub struct GPT3 {
+    pub struct OpenAI {
         key: String,
         model: String,
         temperature: f32,
         max_tokens: u32,
     }
 
-    impl GPT3 {
+    impl OpenAI {
         pub fn new(key: impl AsRef<str>) -> Self {
             Self {
                 key: key.as_ref().to_owned(),
@@ -39,8 +40,8 @@ Content-Type:";
         }
     }
 
-    impl Completer for GPT3 {
-        fn complete(&self, req: &Request) -> Completion {
+    impl Completer for OpenAI {
+        fn complete(&self, req: &Request) -> anyhow::Result<Completion> {
             let prompt = PROMPT
                 .replacen("{{METHOD}}", req.method.to_string().as_str(), 1)
                 .replacen("{{PATH}}", &req.path, 1);
@@ -60,7 +61,7 @@ Content-Type:";
                 .unwrap();
             let text = res
                 .get("choices")
-                .unwrap()
+                .context("Invalid response")?
                 .as_array()
                 .unwrap()
                 .get(0)
@@ -70,11 +71,11 @@ Content-Type:";
                 .as_str()
                 .unwrap();
 
-            let (content, value) = text.split_once("\n").unwrap();
-            Completion {
+            let (content, value) = text.split_once("\n").context("Single like completion")?;
+            Ok(Completion {
                 content_type: content.to_owned(),
                 body: value.as_bytes().to_vec(),
-            }
+            })
         }
     }
 }
