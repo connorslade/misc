@@ -1,5 +1,5 @@
 [package]
-name = "world-wide-west"
+name = "world_wide_west"
 authors = ["Connor Slade"]
 version = "0.1.0"
 edition = "2021"

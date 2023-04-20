@@ -1,15 +1,15 @@
-name: world-wide-west
+name: badge_inventory
 
 on:
   push:
     paths:
-      - "world-wide-west/**"
+      - "badge_inventory/**"
 
 env:
-  PROJECT: world-wide-west
+  PROJECT: badge_inventory
 
 jobs:
-  buildAndTest:
+  build:
     strategy:
       fail-fast: false
       matrix:
