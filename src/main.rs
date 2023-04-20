@@ -1,6 +1,5 @@
 use afire::{trace, trace::Level, Content, Method, Response, Server};
 use app::App;
-use completer::Completion;
 
 use crate::database::Database;
 
@@ -18,20 +17,16 @@ fn main() {
             Some(i) => i,
             None => {
                 println!("[*] Loading completion for `{}`", req.path);
-                let out = app.completer.complete(&req).unwrap();
+                let out = app.completer.complete(req).unwrap();
                 db.set_completion(&req.path, &out);
                 out
             }
         };
 
-        res(&completion)
+        Response::new()
+            .content(Content::Custom(&completion.content_type))
+            .bytes(&completion.body)
     });
 
-    server.start().unwrap();
-}
-
-fn res(completion: &Completion) -> Response {
-    Response::new()
-        .content(Content::Custom(&completion.content_type))
-        .bytes(&completion.body)
+    server.start_threaded(4).unwrap();
 }

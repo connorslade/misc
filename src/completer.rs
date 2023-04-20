@@ -16,7 +16,7 @@ pub mod completers {
 
     use super::{Completer, Completion};
 
-    const PROMPT: &str = "Create a response to the following http request. HTML is often returned. In the case that the response is in HTML add lots of internal relative links to other relevant pages. It is very important that these links start with a `/`. In your response the first line must be a content type (ex: text/html) then the lines after that will be the body.
+    const PROMPT: &str = "Create a response to the following HTTP request. Always add lots of specific detailed information. In the case that the response is in HTML also add relative links to other relevant pages (all internal links). In your response the first line must be an HTTP content type then the lines after that will be the body.
 {{METHOD}} {{PATH}}
 
 ---
@@ -35,7 +35,7 @@ Content-Type:";
                 key: key.as_ref().to_owned(),
                 model: "text-davinci-003".to_owned(),
                 temperature: 0.7,
-                max_tokens: 512,
+                max_tokens: 1024,
             }
         }
     }
@@ -71,7 +71,7 @@ Content-Type:";
                 .as_str()
                 .unwrap();
 
-            let (content, value) = text.split_once("\n").context("Single like completion")?;
+            let (content, value) = text.split_once('\n').context("Single like completion")?;
             Ok(Completion {
                 content_type: content.to_owned(),
                 body: value.as_bytes().to_vec(),
