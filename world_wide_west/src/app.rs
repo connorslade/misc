@@ -4,7 +4,7 @@ use parking_lot::{Mutex, MutexGuard};
 use rusqlite::Connection;
 
 use crate::{
-    completer::{completers::OpenAI, Completer},
+    completer::{open_ai::OpenAI, Completer},
     database::Database,
 };
 

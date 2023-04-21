@@ -25,6 +25,7 @@ fn main() {
 
         Response::new()
             .content(Content::Custom(&completion.content_type))
+            .header("X-Tokens-Used", completion.tokens.to_string())
             .bytes(&completion.body)
     });
 

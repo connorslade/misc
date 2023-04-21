@@ -14,8 +14,8 @@ pub trait Database {
 
 impl Database for Connection {
     fn init(&mut self) {
-        self.pragma_update(None, "journal_mode", "WAL").unwrap();
-        self.pragma_update(None, "synchronous", "NORMAL").unwrap();
+        // self.pragma_update(None, "journal_mode", "WAL").unwrap();
+        // self.pragma_update(None, "synchronous", "NORMAL").unwrap();
 
         self.execute(include_str!("./sql/create_completions.sql"), [])
             .unwrap();
@@ -28,12 +28,13 @@ impl Database for Connection {
 
     fn get_completion(&self, path: &str) -> Option<Completion> {
         self.query_row(
-            "SELECT content, type FROM completions WHERE path = ?",
+            "SELECT content, type, tokens FROM completions WHERE path = ?",
             [path],
             |row| {
                 Ok(Completion {
                     content_type: row.get(1)?,
                     body: row.get::<_, String>(0)?.as_bytes().to_vec(),
+                    tokens: row.get(2)?,
                 })
             },
         )
@@ -42,11 +43,12 @@ impl Database for Connection {
 
     fn set_completion(&self, path: &str, completion: &Completion) {
         self.execute(
-            "INSERT INTO completions (path, content, type) VALUES (?, ?, ?)",
+            "INSERT INTO completions VALUES (?, ?, ?, ?, strftime('%s','now'))",
             params![
                 path,
                 String::from_utf8_lossy(&completion.body),
                 completion.content_type,
+                completion.tokens
             ],
         )
         .unwrap();
