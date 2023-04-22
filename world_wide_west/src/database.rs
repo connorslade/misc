@@ -5,7 +5,6 @@ use crate::completer::Completion;
 pub trait Database {
     // == Base ==
     fn init(&mut self);
-    fn cleanup(&self);
 
     // == Completions ==
     fn get_completion(&self, path: &str) -> Option<Completion>;
@@ -14,15 +13,7 @@ pub trait Database {
 
 impl Database for Connection {
     fn init(&mut self) {
-        // self.pragma_update(None, "journal_mode", "WAL").unwrap();
-        // self.pragma_update(None, "synchronous", "NORMAL").unwrap();
-
         self.execute(include_str!("./sql/create_completions.sql"), [])
-            .unwrap();
-    }
-
-    fn cleanup(&self) {
-        self.pragma_update(None, "wal_checkpoint", "TRUNCATE")
             .unwrap();
     }
 

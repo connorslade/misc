@@ -1,15 +1,18 @@
-use afire::{trace, trace::Level, Content, Method, Response, Server};
+use afire::{trace, trace::Level, Content, Method, Middleware, Response, Server};
 use app::App;
+use path_normalizer::PathNormalizer;
 
 use crate::database::Database;
 
 mod app;
 mod completer;
 mod database;
+mod path_normalizer;
 
 fn main() {
     trace::set_log_level(Level::Trace);
     let mut server = Server::new("localhost", 8080).state(App::new());
+    PathNormalizer.attach(&mut server);
 
     server.stateful_route(Method::ANY, "**", |app, req| {
         let db = app.db();
