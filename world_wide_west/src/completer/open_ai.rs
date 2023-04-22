@@ -81,7 +81,7 @@ impl Completer for OpenAI {
         Ok(Completion {
             content_type: content.trim().to_owned(),
             body: value.as_bytes().to_vec(),
-            tokens: res.usage.prompt_tokens,
+            tokens: res.usage.completion_tokens,
         })
     }
 }

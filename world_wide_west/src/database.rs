@@ -28,7 +28,7 @@ impl Database for Connection {
 
     fn get_completion(&self, path: &str) -> Option<Completion> {
         self.query_row(
-            "SELECT content, type, tokens FROM completions WHERE path = ?",
+            "SELECT content, type, tokens FROM completions WHERE path = ? ORDER BY date DESC LIMIT 1",
             [path],
             |row| {
                 Ok(Completion {
