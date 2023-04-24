@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::{fs, path::Path};
 
 use crate::badge::{load_badges, load_owned};
@@ -29,7 +30,7 @@ pub fn run() -> Result<()> {
     println!("[*] Writing Markdown");
     owned.par_iter().progress().for_each(|x| {
         let badge = x.name.to_lowercase();
-        let badge = best(&badge, &badges, |x| x.name.to_owned()).unwrap();
+        let badge = best(&badge, &badges, |x| Cow::Borrowed(&x.name)).unwrap();
         if x.date >= badge.update_date {
             return;
         }

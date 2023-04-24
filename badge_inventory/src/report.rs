@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs};
+use std::{borrow::Cow, collections::HashMap, fs};
 
 use anyhow::Result;
 use comrak::markdown_to_html;
@@ -30,7 +30,7 @@ pub fn run() -> Result<()> {
 
     for i in owned.iter() {
         let badge = i.name.to_lowercase();
-        let badge = best(&badge, &badges, |x| x.name().to_owned()).unwrap();
+        let badge = best(&badge, &badges, |x| Cow::Borrowed(x.name())).unwrap();
 
         if matches!(badge, Badge::Discontinued(_)) {
             reports.push(BadgeReport {
@@ -93,10 +93,7 @@ pub fn run() -> Result<()> {
 }
 
 fn filter_type(items: &[BadgeReport], status: BadgeStatus) -> Vec<&BadgeReport> {
-    items
-        .iter()
-        .filter(|x| x.status == status)
-        .collect::<Vec<&BadgeReport>>()
+    items.iter().filter(|x| x.status == status).collect()
 }
 
 fn book_list(items: &[&BadgeReport]) -> String {
