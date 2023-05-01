@@ -1,0 +1,15 @@
+[package]
+name = "dad_bot"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+dotenv = "0.15.0"
+rusqlite = { version = "0.29.0", features = ["bundled"] }
+serenity = { default-features = false, features = [
+    "client",
+    "gateway",
+    "rustls_backend",
+    "model",
+] }
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
