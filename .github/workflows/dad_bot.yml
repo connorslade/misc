@@ -1,0 +1,23 @@
+name: dad_bot
+
+on:
+  push:
+    paths:
+      - "dad_bot/**"
+
+env:
+  PROJECT: dad_bot
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build
+        run: cargo build --verbose
+        working-directory: ./${{ env.PROJECT }}
