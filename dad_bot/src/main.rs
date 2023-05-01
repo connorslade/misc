@@ -1,24 +1,30 @@
 use std::env;
 
+use parking_lot::Mutex;
+use rusqlite::Connection;
 use serenity::prelude::*;
 
 mod bot;
 mod commands;
 mod database;
 mod misc;
+use database::Database;
 
 #[tokio::main]
-async fn main() {
-    dotenv::dotenv().expect("Failed to load .env file");
-    let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
+async fn main() -> anyhow::Result<()> {
+    dotenv::dotenv()?;
+    let token = env::var("DISCORD_TOKEN")?;
+    let db_path = env::var("DATABASE_PATH")?;
+
+    let mut connection = Connection::open(db_path)?;
+    connection.init()?;
+    let bot = bot::Bot {
+        connection: Mutex::new(connection),
+    };
 
     let intents = GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT;
-    let mut client = Client::builder(token, intents)
-        .event_handler(bot::Bot)
-        .await
-        .expect("Error creating client");
+    let mut client = Client::builder(token, intents).event_handler(bot).await?;
 
-    if let Err(why) = client.start().await {
-        println!("An error occurred while running the client: {:?}", why);
-    }
+    client.start().await?;
+    Ok(())
 }

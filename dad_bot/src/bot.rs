@@ -1,3 +1,5 @@
+use parking_lot::Mutex;
+use rusqlite::Connection;
 use serenity::async_trait;
 use serenity::model::channel::Message;
 use serenity::model::gateway;
@@ -8,7 +10,9 @@ use serenity::prelude::*;
 use crate::commands;
 use crate::misc::dadable;
 
-pub struct Bot;
+pub struct Bot {
+    pub connection: Mutex<Connection>,
+}
 
 #[async_trait]
 impl EventHandler for Bot {

@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 
-trait Database {
+pub trait Database {
     fn init(&mut self) -> anyhow::Result<()>;
     fn cleanup(&self) -> anyhow::Result<()>;
 }
