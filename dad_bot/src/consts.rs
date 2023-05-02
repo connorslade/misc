@@ -2,7 +2,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 
 lazy_static! {
-    pub static ref IM_REGEX: Regex = Regex::new(r"\bi'?a?m\b").unwrap();
+    pub static ref IM_REGEX: Regex = Regex::new(r"\bi('?| ?a)m\b").unwrap();
     pub static ref DAD_REGEX: Regex = Regex::new(r"\bi('?m| *am) *dad\b").unwrap();
 }
 

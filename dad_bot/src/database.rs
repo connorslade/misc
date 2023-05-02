@@ -9,6 +9,7 @@ pub trait Database {
     // == Dad ==
     fn add_dadable(&self, msg: &Message) -> anyhow::Result<()>;
     fn get_dadable(&self, guild_id: u64, channel_id: u64) -> anyhow::Result<Option<Dadable>>;
+    fn add_daded(&self, dad: &Message, daded: &Message) -> anyhow::Result<()>;
 }
 
 impl Database for Connection {
@@ -66,6 +67,22 @@ impl Database for Connection {
             Err(Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(e.into()),
         }
+    }
+
+    fn add_daded(&self, dad: &Message, daded: &Message) -> anyhow::Result<()> {
+        self.execute(
+            "INSERT INTO dads VALUES (?, ?, ?, ?, ?, ?, strftime('%s','now'))",
+            params![
+                dad.author.id.0,
+                dad.id.0,
+                daded.author.id.0,
+                daded.id.0,
+                daded.channel_id.0,
+                daded.guild_id.unwrap_or_default().0
+            ],
+        )?;
+
+        Ok(())
     }
 }
 

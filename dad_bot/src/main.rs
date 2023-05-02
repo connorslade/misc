@@ -19,7 +19,7 @@ async fn main() -> anyhow::Result<()> {
     let mut connection = Connection::open(db_path)?;
     connection.init()?;
     let bot = bot::Bot {
-        connection: Mutex::new(connection),
+        db: Mutex::new(connection),
     };
 
     let intents = GatewayIntents::non_privileged()

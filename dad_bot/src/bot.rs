@@ -14,7 +14,7 @@ use crate::database::Database;
 use crate::{commands, consts};
 
 pub struct Bot {
-    pub connection: Mutex<Connection>,
+    pub db: Mutex<Connection>,
 }
 
 #[async_trait]
@@ -63,12 +63,12 @@ impl EventHandler for Bot {
                 msg.author.name, msg.channel_id
             );
             msg.react(&ctx.http, '👀').await.unwrap();
-            self.connection.lock().add_dadable(&msg).unwrap();
+            self.db.lock().add_dadable(&msg).unwrap();
         }
 
         async fn check_dadding(this: &Bot, ctx: &Context, msg: &Message) -> bool {
             let dadable = this
-                .connection
+                .db
                 .lock()
                 .get_dadable(msg.guild_id.unwrap().0, msg.channel_id.0)
                 .unwrap();
@@ -89,11 +89,16 @@ impl EventHandler for Bot {
             }
 
             if let Ok(i) = msg.channel_id.message(&ctx.http, dadable.message_id).await {
+                println!(
+                    "[*] Added dad from `{}` on `{}` in `{}`",
+                    msg.author.name, i.author.name, msg.channel_id
+                );
+                this.db.lock().add_daded(msg, &i).unwrap();
                 i.react(&ctx.http, '🇱').await.unwrap();
                 i.delete_reaction_emoji(&ctx.http, '👀').await.unwrap();
             }
 
-            return true;
+            true
         }
     }
 }
