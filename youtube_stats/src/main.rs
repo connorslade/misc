@@ -18,7 +18,7 @@ pub struct Args {
 
     #[arg()]
     pub output_file: PathBuf,
-
+    
     #[arg(short, long)]
     pub api_key: Option<String>,
 
@@ -61,7 +61,7 @@ fn main() {
     let mut videos = HashMap::<Watch, VideoMeta>::new();
     for i in json {
         let url = i.title_url.replacen("\u{003d}", "=", 1);
-        if url.is_empty() {
+        if url.is_empty() || i.subtitles.is_empty() {
             continue;
         }
 
