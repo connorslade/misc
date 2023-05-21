@@ -1,3 +1,6 @@
+## This was only needed bcause I forgot to escape quotes in the original data ##
+## This is not needed anymore                                                 ##
+
 FILE = "out.csv"
 FILE_OUT = "out2.csv"
 

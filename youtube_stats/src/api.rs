@@ -6,11 +6,10 @@ use std::{
 
 use anyhow::Ok;
 use iso8601;
-use serde::Deserialize;
 
 const REQUEST_THRESHOLD: usize = 9980;
 const API_ENDPOINT: &str =
-    "https://www.googleapis.com/youtube/v3/videos?id={ID}&part=contentDetails&key={KEY}";
+    "https://www.googleapis.com/youtube/v3/videos?id={ID}&part=contentDetails,liveStreamingDetails&key={KEY}";
 
 pub struct KeyStore {
     pub keys: Vec<String>,
@@ -20,31 +19,35 @@ pub struct KeyStore {
     requests: AtomicUsize,
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Videos {
-    _kind: String,
-    _etag: String,
-    items: Vec<VideoItem>,
+pub struct VideoMeta {
+    pub count: usize,
+    pub length: Option<f32>,
+    pub live: Option<bool>,
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct VideoItem {
-    id: String,
-    _kind: String,
-    _etag: String,
-    content_details: ContentDetails,
-}
+mod api {
+    use serde::Deserialize;
+    use serde_json::Value;
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ContentDetails {
-    duration: String,
-    _dimension: String,
-    _definition: String,
-    _caption: String,
-    _licensed_content: bool,
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct Videos {
+        pub items: Vec<VideoItem>,
+    }
+
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct VideoItem {
+        pub id: String,
+        pub content_details: ContentDetails,
+        pub live_streaming_details: Option<Value>,
+    }
+
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct ContentDetails {
+        pub duration: String,
+    }
 }
 
 impl KeyStore {
@@ -101,13 +104,13 @@ impl KeyStore {
     }
 }
 
-pub fn video_length(id: &str, key: &KeyStore) -> anyhow::Result<f32> {
+pub fn video_meta(id: &str, views: usize, key: &KeyStore) -> anyhow::Result<VideoMeta> {
     let url = API_ENDPOINT
         .replacen("{ID}", id, 1)
         .replacen("{KEY}", key.key(), 1);
 
     let resp = ureq::get(&url).call()?.into_string()?;
-    let json = serde_json::from_str::<Videos>(&resp)?;
+    let json = serde_json::from_str::<api::Videos>(&resp)?;
 
     if json.items.is_empty() {
         return Err(anyhow::anyhow!("No video found"));
@@ -121,7 +124,11 @@ pub fn video_length(id: &str, key: &KeyStore) -> anyhow::Result<f32> {
     let duration =
         iso8601::Duration::from_str(duration).map_err(|_| anyhow::anyhow!("Invalid duration"))?;
 
-    Ok(duration.as_seconds())
+    Ok(VideoMeta {
+        count: views,
+        length: Some(duration.as_seconds()),
+        live: Some(json.items[0].live_streaming_details.is_some()),
+    })
 }
 
 trait AsSeconds {

@@ -18,17 +18,12 @@ pub struct Args {
 
     #[arg()]
     pub output_file: PathBuf,
-    
-    #[arg(short, long)]
+
+    #[arg(long)]
     pub api_key: Option<String>,
 
-    #[arg(short, long)]
+    #[arg(long)]
     pub api_key_file: Option<PathBuf>,
-}
-
-pub struct VideoMeta {
-    pub count: usize,
-    pub length: f32,
 }
 
 fn main() {
@@ -58,15 +53,15 @@ fn main() {
     let json = serde_json::from_str::<Vec<Watch>>(&file).unwrap();
 
     println!("[*] Watched {} videos", json.len());
-    let mut videos = HashMap::<Watch, VideoMeta>::new();
+    let mut videos = HashMap::<Watch, usize>::new();
     for i in json {
         let url = i.title_url.replacen("\u{003d}", "=", 1);
         if url.is_empty() || i.subtitles.is_empty() {
             continue;
         }
 
-        let count = videos.entry(i).or_insert(VideoMeta::new());
-        count.increment();
+        let count = videos.entry(i).or_insert(0);
+        *count += 1;
     }
 
     if videos.len() > key_store.request_threshold * key_store.keys.len() {
@@ -80,14 +75,14 @@ fn main() {
 
     println!("[*] Sorting videos");
     let mut videos = videos.into_iter().collect::<Vec<_>>();
-    videos.sort_by(|a, b| b.1.count.cmp(&a.1.count));
+    videos.sort_by_key(|x| x.1);
 
     println!("[*] Fetching video lengths");
     let videos = videos
         .into_par_iter()
         .progress()
         .filter_map(|x| {
-            let length = match api::video_length(x.0.id(), &key_store) {
+            let meta = match api::video_meta(x.0.id(), x.1, &key_store) {
                 Ok(x) => x,
                 Err(e) => {
                     eprintln!("Failed to fetch video length for {}: {}", x.0.id(), e);
@@ -95,26 +90,29 @@ fn main() {
                 }
             };
 
-            Some((
-                VideoMeta {
-                    count: x.1.count,
-                    length,
-                },
-                x.0,
-            ))
+            Some((meta, x.0))
         })
         .collect::<Vec<_>>();
 
     println!("[*] Writing to file");
-
-    let mut out = String::from("title,id,watch_count,video_length\n");
+    let mut out =
+        String::from("title,id,live,channel,channel_id,last_watch,watch_count,video_length\n");
     for i in videos {
+        let channel_id = &i.1.subtitles[0].url;
+
         out.push_str(&format!(
-            "{},{},{},{}\n",
+            "{},{},{},{},{},{},{},{}\n",
             i.1.title.strip_prefix("Watched ").unwrap_or(&i.1.title),
             i.1.id(),
+            i.0.live.unwrap(),
+            i.1.subtitles[0].name,
+            channel_id
+                .splitn(2, "channel/")
+                .last()
+                .unwrap_or(channel_id),
+            i.1.time,
             i.0.count,
-            i.0.length
+            i.0.length.unwrap()
         ));
     }
 
@@ -125,18 +123,5 @@ fn assert_ext(path: &PathBuf, ext: &str) {
     if path.extension().map(|x| x.to_string_lossy()) != Some(Cow::Borrowed(ext)) {
         eprintln!("Input file must be a JSON file");
         process::exit(-1);
-    }
-}
-
-impl VideoMeta {
-    pub fn new() -> Self {
-        Self {
-            count: 0,
-            length: 0.0,
-        }
-    }
-
-    pub fn increment(&mut self) {
-        self.count += 1;
     }
 }
