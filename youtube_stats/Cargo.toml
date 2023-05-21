@@ -1,0 +1,17 @@
+[package]
+name = "youtube_stats"
+version = "0.1.0"
+edition = "2021"
+authors = ["Connor Slade"]
+description = "A command line tool to help figure out how much time you've spent watching YouTube videos."
+
+[dependencies]
+anyhow = "1.0.71"
+clap = { version = "4.3.0", features = ["derive"] }
+hashbrown = "0.13.2"
+indicatif = { version = "0.17.3", features = ["rayon"] }
+iso8601 = "0.6.1"
+rayon = "1.7.0"
+serde = { version = "1.0.163", features = ["derive"] }
+serde_json = "1.0.96"
+ureq = "2.6.2"
