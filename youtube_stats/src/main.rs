@@ -5,7 +5,7 @@ use hashbrown::HashMap;
 use indicatif::ParallelProgressIterator;
 use rayon::prelude::*;
 
-use crate::history::Watch;
+use crate::{api::KeyStore, history::Watch};
 
 mod api;
 mod history;
@@ -19,8 +19,11 @@ pub struct Args {
     #[arg()]
     pub output_file: PathBuf,
 
-    #[arg()]
-    pub api_key: String,
+    #[arg(short, long)]
+    pub api_key: Option<String>,
+
+    #[arg(short, long)]
+    pub api_key_file: Option<PathBuf>,
 }
 
 pub struct VideoMeta {
@@ -30,6 +33,22 @@ pub struct VideoMeta {
 
 fn main() {
     let args = Args::parse();
+    let key_store = match (args.api_key, args.api_key_file) {
+        (_, Some(f)) => KeyStore::from_file(f).unwrap(),
+        (Some(k), _) => KeyStore::from_key(&k),
+        _ => {
+            eprintln!("[-] No API key provided");
+            process::exit(1);
+        }
+    };
+
+    println!(
+        "[*] Verifying {} API key{}",
+        key_store.keys.len(),
+        if key_store.keys.len() == 1 { "" } else { "s" }
+    );
+    key_store.verify().unwrap();
+    println!(" \\ Success");
 
     assert_ext(&args.input_file, "json");
     assert_ext(&args.output_file, "csv");
@@ -50,6 +69,15 @@ fn main() {
         count.increment();
     }
 
+    if videos.len() > key_store.request_threshold * key_store.keys.len() {
+        eprintln!(
+            "[-] Not enough API keys to fetch video lengths ({} keys, {} videos)",
+            key_store.keys.len(),
+            videos.len()
+        );
+        process::exit(1);
+    }
+
     println!("[*] Sorting videos");
     let mut videos = videos.into_iter().collect::<Vec<_>>();
     videos.sort_by(|a, b| b.1.count.cmp(&a.1.count));
@@ -59,7 +87,7 @@ fn main() {
         .into_par_iter()
         .progress()
         .filter_map(|x| {
-            let length = match api::video_length(x.0.id(), &args.api_key) {
+            let length = match api::video_length(x.0.id(), &key_store) {
                 Ok(x) => x,
                 Err(e) => {
                     eprintln!("Failed to fetch video length for {}: {}", x.0.id(), e);
