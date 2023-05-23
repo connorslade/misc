@@ -100,6 +100,7 @@ fn main() {
     for i in videos {
         let channel_id = &i.1.subtitles[0].url;
 
+        // todo: escape commas in title
         out.push_str(&format!(
             "{},{},{},{},{},{},{},{}\n",
             i.1.title.strip_prefix("Watched ").unwrap_or(&i.1.title),
