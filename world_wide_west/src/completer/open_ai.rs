@@ -7,7 +7,8 @@ use serde_json::json;
 
 use super::{Completer, Completion};
 
-const PROMPT: &str = "Create a response to the following HTTP request. Always add lots of specific detailed information. In the case that the response is in HTML also add relative links to other relevant pages (all internal links). In your response the first line must be an HTTP content type then the lines after that will be the body.
+// PROOMPT
+const PROMPT: &str = "Create a response to the following HTTP request. Always add lots of specific detailed information, boilerplate or placeholder information is never acceptable. In the case that the response is in HTML also add relative links to other relevant pages (all internal links). In your response the first line must be an HTTP content type then the lines after that will be the body.
 {{METHOD}} {{PATH}}
 
 ---
