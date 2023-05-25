@@ -5,7 +5,6 @@ use std::{
 };
 
 use anyhow::Ok;
-use iso8601;
 
 const REQUEST_THRESHOLD: usize = 9980;
 const API_ENDPOINT: &str =
@@ -25,7 +24,7 @@ pub struct VideoMeta {
     pub live: Option<bool>,
 }
 
-mod api {
+mod api_interface {
     use serde::Deserialize;
     use serde_json::Value;
 
@@ -73,7 +72,7 @@ impl KeyStore {
         })
     }
 
-    pub fn key<'a>(&'a self) -> &str {
+    pub fn key(&self) -> &str {
         let req = self.requests.fetch_add(1, Ordering::SeqCst);
         if req == self.request_threshold {
             self.requests.store(0, Ordering::SeqCst);
@@ -110,7 +109,7 @@ pub fn video_meta(id: &str, views: usize, key: &KeyStore) -> anyhow::Result<Vide
         .replacen("{KEY}", key.key(), 1);
 
     let resp = ureq::get(&url).call()?.into_string()?;
-    let json = serde_json::from_str::<api::Videos>(&resp)?;
+    let json = serde_json::from_str::<api_interface::Videos>(&resp)?;
 
     if json.items.is_empty() {
         return Err(anyhow::anyhow!("No video found"));

@@ -8,6 +8,7 @@ description = "A command line tool to help figure out how much time you've spent
 [dependencies]
 anyhow = "1.0.71"
 clap = { version = "4.3.0", features = ["derive"] }
+csv = "1.2.1"
 hashbrown = "0.13.2"
 indicatif = { version = "0.17.3", features = ["rayon"] }
 iso8601 = "0.6.1"

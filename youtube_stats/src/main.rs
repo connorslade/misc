@@ -1,6 +1,12 @@
-use std::{borrow::Cow, fs, path::PathBuf, process};
+use std::{
+    borrow::Cow,
+    fs,
+    path::{Path, PathBuf},
+    process,
+};
 
 use clap::Parser;
+use csv::Writer;
 use hashbrown::HashMap;
 use indicatif::ParallelProgressIterator;
 use rayon::prelude::*;
@@ -55,8 +61,7 @@ fn main() {
     println!("[*] Watched {} videos", json.len());
     let mut videos = HashMap::<Watch, usize>::new();
     for i in json {
-        let url = i.title_url.replacen("\u{003d}", "=", 1);
-        if url.is_empty() || i.subtitles.is_empty() {
+        if i.title_url.is_empty() || i.subtitles.is_empty() {
             continue;
         }
 
@@ -95,32 +100,41 @@ fn main() {
         .collect::<Vec<_>>();
 
     println!("[*] Writing to file");
-    let mut out =
-        String::from("title,id,live,channel,channel_id,last_watch,watch_count,video_length\n");
+    let mut csv = Writer::from_path(&args.output_file).unwrap();
+    csv.write_record([
+        "title",
+        "id",
+        "live",
+        "channel",
+        "channel_id",
+        "last_watch",
+        "watch_count",
+        "video_length",
+    ])
+    .unwrap();
+
     for i in videos {
         let channel_id = &i.1.subtitles[0].url;
 
-        // todo: escape commas in title
-        out.push_str(&format!(
-            "{},{},{},{},{},{},{},{}\n",
+        csv.serialize((
             i.1.title.strip_prefix("Watched ").unwrap_or(&i.1.title),
             i.1.id(),
             i.0.live.unwrap(),
-            i.1.subtitles[0].name,
+            &i.1.subtitles[0].name,
             channel_id
                 .splitn(2, "channel/")
                 .last()
                 .unwrap_or(channel_id),
-            i.1.time,
+            &i.1.time,
             i.0.count,
-            i.0.length.unwrap()
-        ));
+            i.0.length.unwrap(),
+        ))
+        .unwrap();
     }
-
-    fs::write(&args.output_file, out).unwrap();
+    csv.flush().unwrap();
 }
 
-fn assert_ext(path: &PathBuf, ext: &str) {
+fn assert_ext(path: &Path, ext: &str) {
     if path.extension().map(|x| x.to_string_lossy()) != Some(Cow::Borrowed(ext)) {
         eprintln!("Input file must be a JSON file");
         process::exit(-1);
