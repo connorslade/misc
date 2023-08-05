@@ -3,6 +3,7 @@ members = [
     "badge_inventory",
     "coding_bat_exporter",
     "dad_bot",
+    "soon",
     "study",
     "world_wide_west",
     "youtube_stats",
