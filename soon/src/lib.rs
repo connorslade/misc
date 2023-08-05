@@ -1,9 +1,16 @@
-/// On the off chance that somebody is actually looking at this.
-/// DO NOT USE THIS. THERE IS NO GOOD REASON TO DO SOMETHING LIKE THIS.
-/// i only wrote this because my reasons are bad.
-/// also its been too long since ive used unsafe for no reason.
-/// This is originally from my [radio-data project](https://github.com/Basicprogrammer10/radio-data/blob/master/src/misc/soon.rs)
+//! On the off chance that somebody is actually looking at this.
+//! DO NOT USE THIS. THERE IS NO GOOD REASON TO DO SOMETHING LIKE THIS.
+//! i only wrote this because my reasons are bad.
+//! also its been too long since ive used unsafe for no reason.
+//! This is originally from my [radio-data project](https://github.com/Basicprogrammer10/radio-data/blob/master/src/misc/soon.rs)
+
 use std::{cell::UnsafeCell, mem::MaybeUninit, ops::Deref};
+#[cfg(debug_assertions)]
+use std::{
+    mem,
+    sync::atomic::{AtomicUsize, Ordering},
+    thread,
+};
 
 #[cfg(test)]
 mod test;
@@ -13,6 +20,8 @@ mod test;
 /// You are expected to use it properly.
 pub struct Soon<T> {
     inner: MaybeUninit<UnsafeCell<T>>,
+    #[cfg(debug_assertions)]
+    init_thread: AtomicUsize,
 }
 
 impl<T> Soon<T> {
@@ -23,14 +32,21 @@ impl<T> Soon<T> {
     pub fn empty() -> Self {
         Self {
             inner: MaybeUninit::zeroed(),
+            #[cfg(debug_assertions)]
+            init_thread: AtomicUsize::new(current_thread()),
         }
     }
 
     /// Replace whatever is in the `Soon` with a specified value.
     /// Please only call this once per soon object.
     pub fn replace(&self, val: T) {
-        // SAFETY: nobody cares >:)
+        #[cfg(debug_assertions)]
+        if self.init_thread.load(Ordering::Relaxed) != current_thread() {
+            panic!("Replacing `Soon` on different thread than it was created.")
+        }
+
         let cell = self.inner.as_ptr() as *mut T;
+        // SAFETY: nobody cares >:)
         unsafe {
             cell.write(val);
         }
@@ -61,3 +77,8 @@ impl<T> Drop for Soon<T> {
 // shhhhh. its not really thread safe.
 unsafe impl<T> Send for Soon<T> {}
 unsafe impl<T> Sync for Soon<T> {}
+
+#[cfg(debug_assertions)]
+fn current_thread() -> usize {
+    unsafe { mem::transmute(thread::current().id()) }
+}

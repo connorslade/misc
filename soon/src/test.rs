@@ -1,9 +1,9 @@
-use std::sync::Arc;
+use std::{sync::Arc, thread};
 
 use super::Soon;
 
 #[test]
-fn main() {
+fn test_basic() {
     struct App {
         item: Soon<Item>,
     }
@@ -17,4 +17,16 @@ fn main() {
     });
     let item = Item { app: app.clone() };
     app.item.replace(item);
+
+    assert_eq!(Arc::into_raw(app.item.app.clone()), Arc::into_raw(app));
+}
+
+#[test]
+#[should_panic]
+#[cfg(debug_assertions)]
+fn test_thread_safety() {
+    let soon: Soon<i32> = Soon::empty();
+    thread::scope(|s| {
+        s.spawn(|| soon.replace(0));
+    })
 }
