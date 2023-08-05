@@ -38,11 +38,17 @@ impl<T> Soon<T> {
     }
 
     /// Replace whatever is in the `Soon` with a specified value.
-    /// Please only call this once per soon object.
+    /// Only call this once per soon object.
     pub fn replace(&self, val: T) {
         #[cfg(debug_assertions)]
-        if self.init_thread.load(Ordering::Relaxed) != current_thread() {
-            panic!("Replacing `Soon` on different thread than it was created.")
+        {
+            if self.init_thread.load(Ordering::Relaxed) != current_thread() {
+                panic!("Tried to replace a `Soon` on different thread than it was created.")
+            }
+
+            if !self.inner.as_ptr().is_null() {
+                panic!("Tried to replace a `Soon` that already had a value.");
+            }
         }
 
         let cell = self.inner.as_ptr() as *mut T;
