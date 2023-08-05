@@ -36,6 +36,7 @@ impl ToString for CardStatus {
             CardStatus::New => "NEW",
             CardStatus::Learning => "LEARNING",
             CardStatus::Mastered => "MASTERED",
-        }.to_string()
+        }
+        .to_string()
     }
 }
