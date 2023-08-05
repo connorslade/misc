@@ -8,3 +8,4 @@ members = [
     "world_wide_west",
     "youtube_stats",
 ]
+resolver = "2"

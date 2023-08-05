@@ -5,6 +5,9 @@
 /// This is originally from my [radio-data project](https://github.com/Basicprogrammer10/radio-data/blob/master/src/misc/soon.rs)
 use std::{cell::UnsafeCell, mem::MaybeUninit, ops::Deref};
 
+#[cfg(test)]
+mod test;
+
 /// A *VERY UNSAFE* way to set values after creating a struct.
 /// Like a RefCell without the borrow checking.
 /// You are expected to use it properly.
