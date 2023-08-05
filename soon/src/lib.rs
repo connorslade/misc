@@ -46,9 +46,10 @@ impl<T> Soon<T> {
                 panic!("Tried to replace a `Soon` on different thread than it was created.")
             }
 
-            if !self.inner.as_ptr().is_null() {
-                panic!("Tried to replace a `Soon` that already had a value.");
-            }
+            // TODO: Fix this. Maybe with another atomic?
+            // if !self.inner.as_ptr().is_null() {
+            //     panic!("Tried to replace a `Soon` that already had a value.");
+            // }
         }
 
         let cell = self.inner.as_ptr() as *mut T;
