@@ -2,16 +2,12 @@
 //! DO NOT USE THIS. THERE IS NO GOOD REASON TO DO SOMETHING LIKE THIS.
 //! i only wrote this because my reasons are bad.
 //! also its been too long since ive used unsafe for no reason.
-//! This is originally from my [radio-data project](https://github.com/Basicprogrammer10/radio-data/blob/master/src/misc/soon.rs)
+//! This is originally from my [radio-data project](https://github.com/Basicprogrammer10/radio-data/blob/master/src/misc/soon.rs).
 
 use std::{cell::UnsafeCell, mem::MaybeUninit, ops::Deref};
-#[cfg(debug_assertions)]
-use std::{
-    mem,
-    sync::atomic::{AtomicUsize, Ordering},
-    thread,
-};
 
+#[cfg(debug_assertions)]
+mod safety;
 #[cfg(test)]
 mod test;
 
@@ -21,7 +17,7 @@ mod test;
 pub struct Soon<T> {
     inner: MaybeUninit<UnsafeCell<T>>,
     #[cfg(debug_assertions)]
-    init_thread: AtomicUsize,
+    safety: safety::SoonSafety,
 }
 
 impl<T> Soon<T> {
@@ -33,7 +29,7 @@ impl<T> Soon<T> {
         Self {
             inner: MaybeUninit::zeroed(),
             #[cfg(debug_assertions)]
-            init_thread: AtomicUsize::new(current_thread()),
+            safety: safety::SoonSafety::default(),
         }
     }
 
@@ -41,19 +37,10 @@ impl<T> Soon<T> {
     /// Only call this once per soon object.
     pub fn replace(&self, val: T) {
         #[cfg(debug_assertions)]
-        {
-            if self.init_thread.load(Ordering::Relaxed) != current_thread() {
-                panic!("Tried to replace a `Soon` on different thread than it was created.")
-            }
+        self.safety.on_replace();
 
-            // TODO: Fix this. Maybe with another atomic?
-            // if !self.inner.as_ptr().is_null() {
-            //     panic!("Tried to replace a `Soon` that already had a value.");
-            // }
-        }
-
-        let cell = self.inner.as_ptr() as *mut T;
         // SAFETY: nobody cares >:)
+        let cell = self.inner.as_ptr() as *mut T;
         unsafe {
             cell.write(val);
         }
@@ -65,9 +52,7 @@ impl<T> Deref for Soon<T> {
 
     fn deref(&self) -> &Self::Target {
         #[cfg(debug_assertions)]
-        if self.inner.as_ptr().is_null() {
-            panic!("A `Soon` was dereferenced before being givin a value.");
-        }
+        self.safety.on_deref();
 
         let cell = UnsafeCell::raw_get(self.inner.as_ptr());
         unsafe { &*cell }
@@ -76,6 +61,11 @@ impl<T> Deref for Soon<T> {
 
 impl<T> Drop for Soon<T> {
     fn drop(&mut self) {
+        #[cfg(debug_assertions)]
+        if !self.safety.on_drop() {
+            return;
+        }
+
         let cell = UnsafeCell::raw_get(self.inner.as_ptr());
         unsafe { cell.drop_in_place() }
     }
@@ -84,8 +74,3 @@ impl<T> Drop for Soon<T> {
 // shhhhh. its not really thread safe.
 unsafe impl<T> Send for Soon<T> {}
 unsafe impl<T> Sync for Soon<T> {}
-
-#[cfg(debug_assertions)]
-fn current_thread() -> usize {
-    unsafe { mem::transmute(thread::current().id()) }
-}

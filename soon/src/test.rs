@@ -30,3 +30,11 @@ fn test_thread_safety() {
         s.spawn(|| soon.replace(0));
     })
 }
+
+#[test]
+#[should_panic]
+#[cfg(debug_assertions)]
+fn test_has_value() {
+    let soon: Soon<u32> = Soon::empty();
+    assert_eq!(*soon, 0);
+}
