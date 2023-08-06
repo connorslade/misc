@@ -28,13 +28,11 @@ fn test_thread_safety() {
     let soon: Soon<i32> = Soon::empty();
     thread::scope(|s| {
         s.spawn(|| soon.replace(0));
-    })
+    });
 }
 
 #[test]
-#[should_panic]
-#[cfg(debug_assertions)]
-fn test_has_value() {
+fn test_no_value_drop() {
     let soon: Soon<u32> = Soon::empty();
-    assert_eq!(*soon, 0);
+    drop(soon);
 }

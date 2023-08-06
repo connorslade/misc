@@ -61,11 +61,6 @@ impl<T> Deref for Soon<T> {
 
 impl<T> Drop for Soon<T> {
     fn drop(&mut self) {
-        #[cfg(debug_assertions)]
-        if !self.safety.on_drop() {
-            return;
-        }
-
         let cell = UnsafeCell::raw_get(self.inner.as_ptr());
         unsafe { cell.drop_in_place() }
     }

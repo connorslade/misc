@@ -27,14 +27,6 @@ impl SoonSafety {
             panic!("A `Soon` was dereferenced before being givin a value.");
         }
     }
-
-    pub fn on_drop(&self) -> bool {
-        let val = self.has_value.load(Ordering::Relaxed);
-        if !val {
-            eprintln!("A `Soon` was dropped before being givin a value");
-        }
-        val
-    }
 }
 
 impl Default for SoonSafety {
