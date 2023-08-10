@@ -1,9 +1,11 @@
-use anyhow::{Context, Ok, Result};
+use anyhow::{bail, Result};
 
 mod boat_info;
 use boat_info::BoatInfo;
+use csv::Writer;
+use indicatif::ParallelProgressIterator;
+use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use serde::Deserialize;
-use serde_json::Value;
 
 const SEARCH_PATH: &str = "https://www.boatinfoworld.com/getsearchresults.asp";
 const STATE_CODES: &[&str] = &[
@@ -13,14 +15,48 @@ const STATE_CODES: &[&str] = &[
     "IN", "NC", "WV", "IA", "ND", "WI", "KS", "MP", "WY",
 ];
 
-fn main() {
-    dbg!(download_state("NJ"));
+fn main() -> Result<()> {
+    let mut writer = Writer::from_path("out.csv")?;
+    let data = STATE_CODES
+        .par_iter()
+        .progress()
+        .cloned()
+        .map(download_state)
+        .filter_map(Result::ok)
+        .flatten()
+        .collect::<Vec<_>>();
+
+    for i in data {
+        if let Err(e) = writer.serialize(i) {
+            eprintln!("Error serializing info: {e:?}");
+        }
+    }
+    writer.flush()?;
+
+    Ok(())
 }
 
 fn download_state(state: &str) -> Result<Vec<BoatInfo>> {
-    let init = raw_download(state, 0)?;
-    let all = raw_download(state, init.records_total)?;
-    let out = all.data.into_iter().map(BoatInfo::from_raw).collect();
+    let init = match raw_download(state, 0) {
+        Ok(e) => e,
+        Err(e) => {
+            eprintln!("Error getting {state} size: {e:?}");
+            bail!(e);
+        }
+    };
+    let all = match raw_download(state, init.records_total) {
+        Ok(e) => e,
+        Err(e) => {
+            eprintln!("Error getting {state} records: {e:?}");
+            bail!(e);
+        }
+    };
+
+    let out = all
+        .data
+        .into_iter()
+        .map(|x| BoatInfo::from_raw(state, x))
+        .collect();
 
     Ok(out)
 }
@@ -37,9 +73,10 @@ fn raw_download(state: &str, count: u64) -> Result<RawDownload> {
         .replacen("{{STATE}}", state, 1)
         .replacen("{{COUNT}}", &count.to_string(), 1);
 
-    let res = ureq::post(SEARCH_PATH)
-        .set("Content-Type", "application/x-www-form-urlencoded")
-        .send_string(&body)?;
+    let res = minreq::post(SEARCH_PATH)
+        .with_header("Content-Type", "application/x-www-form-urlencoded")
+        .with_body(body.as_bytes())
+        .send()?;
 
-    Ok(res.into_json()?)
+    Ok(res.json()?)
 }

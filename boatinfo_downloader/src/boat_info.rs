@@ -1,5 +1,8 @@
-#[derive(Debug)]
+use serde::Serialize;
+
+#[derive(Debug, Serialize)]
 pub struct BoatInfo {
+    state: String,
     name: Option<String>,
     reg_to: Option<String>,
     reg_address: Option<String>,
@@ -14,8 +17,9 @@ pub struct BoatInfo {
 }
 
 impl BoatInfo {
-    pub fn from_raw(raw: Vec<String>) -> Self {
+    pub fn from_raw(state: &str, raw: Vec<String>) -> Self {
         Self {
+            state: state.to_owned(),
             name: raw.get(0).cloned(),
             reg_to: raw.get(1).cloned(),
             reg_address: raw.get(2).cloned(),
