@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "badge_inventory",
+    "boatinfo_downloader",
     "coding_bat_exporter",
     "dad_bot",
     "soon",
