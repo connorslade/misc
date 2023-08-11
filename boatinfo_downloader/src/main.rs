@@ -57,12 +57,13 @@ fn main() -> Result<()> {
     let data = jobs
         .par_iter()
         .progress_with_style(style)
-        .map(|x| {
+        .filter_map(|x| {
             retry(Exponential::from_millis(10).take(3), || {
                 Ok::<_, Error>(raw_download(&x.state, x.start, x.count)?.into_boatinfo(&x.state))
             })
+            .ok()
         })
-        .filter_map(Result::ok)
+        .flatten()
         .collect::<Vec<_>>();
 
     let mut writer = Writer::from_path("out.csv")?;
