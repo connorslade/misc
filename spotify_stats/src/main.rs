@@ -1,8 +1,16 @@
-use std::fs::{self, File};
+use std::{
+    collections::HashMap,
+    fs::{self, File},
+};
 
 use anyhow::{Context, Error, Result};
-use chrono::NaiveDateTime;
+use chrono::{Datelike, NaiveDateTime};
 use once_cell::sync::Lazy;
+use plotters::{
+    prelude::{ChartBuilder, IntoDrawingArea, IntoSegmentedCoord, SVGBackend},
+    series::Histogram,
+    style::{Color, BLUE, RED, WHITE},
+};
 use rayon::prelude::{ParallelBridge, ParallelIterator};
 use regex::Regex;
 use serde::{Deserialize, Deserializer};
@@ -35,6 +43,137 @@ fn main() -> Result<()> {
         "Total played: {}ms",
         data.iter().map(|x| x.ms_played).sum::<u64>()
     );
+
+    let year_data = data.iter().map(|x| x.ts.year() as u32).collect::<Vec<_>>();
+    let year_range = *year_data.iter().min().unwrap()..=*year_data.iter().max().unwrap();
+    {
+        let counts = &year_range
+            .clone()
+            .map(|x| year_data.iter().filter(|y| **y == x).count() as u32)
+            .collect::<Vec<_>>();
+        let count_range = 0..*counts.iter().max().unwrap() + 1;
+
+        let root = SVGBackend::new("out.svg", (640 * 2, 480 * 2)).into_drawing_area();
+        root.fill(&WHITE)?;
+
+        let mut chart = ChartBuilder::on(&root)
+            .x_label_area_size(35)
+            .y_label_area_size(40)
+            .margin(5)
+            .caption("Songs per Year", ("sans-serif", 50.0))
+            .build_cartesian_2d(
+                (*year_range.start()..*year_range.end()).into_segmented(),
+                0..(count_range.end as f32 * 1.1) as u32,
+            )?;
+
+        chart
+            .configure_mesh()
+            .disable_x_mesh()
+            .bold_line_style(&WHITE.mix(0.3))
+            .y_desc("Count")
+            .x_desc("Year")
+            .axis_desc_style(("sans-serif", 15))
+            .draw()?;
+
+        chart.draw_series(
+            Histogram::vertical(&chart)
+                .style(RED.mix(0.5).filled())
+                .data(year_data.iter().map(|x: &u32| (*x, 1))),
+        )?;
+        root.present()?;
+    }
+
+    {
+        let time_per_year = year_range
+            .clone()
+            .map(|x| {
+                (
+                    x,
+                    data.iter()
+                        .filter(|y| y.ts.year() as u32 == x)
+                        .map(|y| (y.ms_played / 1000 / 60) as u32)
+                        .sum::<u32>(),
+                )
+            })
+            .collect::<HashMap<_, _>>();
+        let max_time = *time_per_year.values().max().unwrap();
+
+        let root = SVGBackend::new("out2.svg", (640 * 2, 480 * 2)).into_drawing_area();
+        root.fill(&WHITE)?;
+
+        let mut chart = ChartBuilder::on(&root)
+            .x_label_area_size(35)
+            .y_label_area_size(40)
+            .margin(5)
+            .caption("Time per Year", ("sans-serif", 50.0))
+            .build_cartesian_2d(
+                (*year_range.start()..*year_range.end()).into_segmented(),
+                0..(max_time as f32 * 1.1) as u32,
+            )?;
+
+        chart
+            .configure_mesh()
+            .disable_x_mesh()
+            .bold_line_style(&WHITE.mix(0.3))
+            .y_desc("Time (m)")
+            .x_desc("Year")
+            .axis_desc_style(("sans-serif", 15))
+            .draw()?;
+
+        chart.draw_series(
+            Histogram::vertical(&chart)
+                .style(BLUE.mix(0.5).filled())
+                .data(time_per_year),
+        )?;
+        root.present()?;
+    }
+
+    {
+        let avg_song_len_per_year = year_range
+            .clone()
+            .map(|x| {
+                (
+                    x,
+                    data.iter()
+                        .filter(|y| y.ts.year() as u32 == x)
+                        .map(|y| (y.ms_played / 1000) as u32)
+                        .sum::<u32>()
+                        / data.iter().filter(|y| y.ts.year() as u32 == x).count() as u32,
+                )
+            })
+            .collect::<HashMap<_, _>>();
+
+        let max_time = *avg_song_len_per_year.values().max().unwrap();
+
+        let root = SVGBackend::new("out3.svg", (640 * 2, 480 * 2)).into_drawing_area();
+        root.fill(&WHITE)?;
+
+        let mut chart = ChartBuilder::on(&root)
+            .x_label_area_size(35)
+            .y_label_area_size(40)
+            .margin(5)
+            .caption("Time per Song per Year", ("sans-serif", 50.0))
+            .build_cartesian_2d(
+                (*year_range.start()..*year_range.end()).into_segmented(),
+                0..(max_time as f32 * 1.1) as u32,
+            )?;
+
+        chart
+            .configure_mesh()
+            .disable_x_mesh()
+            .bold_line_style(&WHITE.mix(0.3))
+            .y_desc("Time (s)")
+            .x_desc("Year")
+            .axis_desc_style(("sans-serif", 15))
+            .draw()?;
+
+        chart.draw_series(
+            Histogram::vertical(&chart)
+                .style(BLUE.mix(0.5).filled())
+                .data(avg_song_len_per_year),
+        )?;
+        root.present()?;
+    }
 
     Ok(())
 }
