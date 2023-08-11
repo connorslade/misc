@@ -7,6 +7,7 @@ members = [
     "coding_bat_exporter",
     "dad_bot",
     "soon",
+    "spotify_stats",
     "study",
     "world_wide_west",
     "youtube_stats",
