@@ -1,12 +1,12 @@
-use anyhow::{bail, Error, Result};
-
-mod boat_info;
-use boat_info::BoatInfo;
+use anyhow::{Error, Result};
 use csv::Writer;
-use indicatif::ParallelProgressIterator;
+use indicatif::{ParallelProgressIterator, ProgressStyle};
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use retry::{delay::Exponential, retry};
 use serde::Deserialize;
+
+mod boat_info;
+use boat_info::BoatInfo;
 
 const CHUNK_SIZE: usize = 100;
 const SEARCH_PATH: &str = "https://www.boatinfoworld.com/getsearchresults.asp";
@@ -18,9 +18,10 @@ const STATE_CODES: &[&str] = &[
 ];
 
 fn main() -> Result<()> {
+    let style = ProgressStyle::with_template("{wide_bar} ETA: {eta}, {per_sec}").unwrap();
     let counts = STATE_CODES
         .par_iter()
-        .progress()
+        .progress_with_style(style.clone())
         .map(|x| {
             retry(Exponential::from_millis(10).take(3), || {
                 Ok::<_, Error>((x, raw_download(x, 0, 0)?.records_total))
@@ -55,15 +56,13 @@ fn main() -> Result<()> {
 
     let data = jobs
         .par_iter()
-        .progress()
+        .progress_with_style(style)
         .map(|x| {
             retry(Exponential::from_millis(10).take(3), || {
-                Ok::<_, Error>(download_state(&x.state, x.start, x.count))
+                Ok::<_, Error>(raw_download(&x.state, x.start, x.count)?.into_boatinfo(&x.state))
             })
         })
         .filter_map(Result::ok)
-        .filter_map(Result::ok)
-        .flatten()
         .collect::<Vec<_>>();
 
     let mut writer = Writer::from_path("out.csv")?;
@@ -77,29 +76,18 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn download_state(state: &str, start: u64, count: u64) -> Result<Vec<BoatInfo>> {
-    let all = match raw_download(state, start, count) {
-        Ok(e) => e,
-        Err(e) => {
-            eprintln!("Error getting {state} records: {e:?}");
-            bail!(e);
-        }
-    };
-
-    let out = all
-        .data
-        .into_iter()
-        .map(|x| BoatInfo::from_raw(state, x))
-        .collect();
-
-    Ok(out)
-}
-
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RawDownload {
     records_total: u64,
     data: Vec<Vec<String>>,
+}
+
+#[derive(Debug)]
+struct Job {
+    state: String,
+    start: u64,
+    count: u64,
 }
 
 fn raw_download(state: &str, start: u64, count: u64) -> Result<RawDownload> {
@@ -116,9 +104,11 @@ fn raw_download(state: &str, start: u64, count: u64) -> Result<RawDownload> {
     Ok(res.json()?)
 }
 
-#[derive(Debug)]
-struct Job {
-    state: String,
-    start: u64,
-    count: u64,
+impl RawDownload {
+    fn into_boatinfo(self, state: &str) -> Vec<BoatInfo> {
+        self.data
+            .into_iter()
+            .map(|x| BoatInfo::from_raw(state, x))
+            .collect::<Vec<_>>()
+    }
 }
