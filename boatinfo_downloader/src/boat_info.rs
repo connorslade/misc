@@ -14,6 +14,7 @@ pub struct BoatInfo {
 
 impl BoatInfo {
     pub fn from_raw(state: &str, raw: Vec<String>) -> Self {
+        // TODO: should be none if value is empty or "n/a"
         Self {
             state: state.to_owned(),
             name: raw[0].to_owned(),
