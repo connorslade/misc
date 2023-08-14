@@ -1,6 +1,10 @@
 ### A Pluto.jl notebook ###
 # v0.19.27
 
+#> [frontmatter]
+#> title = "Spotify Liked Songs Analysis"
+#> date = "2023-08-14"
+
 using Markdown
 using InteractiveUtils
 
@@ -70,9 +74,6 @@ begin
 	end
 end
 
-# ╔═╡ 03094966-fd29-49fc-af8d-7863bd852347
-songs
-
 # ╔═╡ c98868ff-e13b-441a-9e6a-13691c522f19
 md"## Plots"
 
@@ -131,10 +132,20 @@ md"## Songs Added per Day of the Week"
 
 # ╔═╡ 53f00870-dccd-4572-9f8f-b12a76961940
 begin
-	local days = Dict{String, Int64}()
+	const DAYS = [
+		"Monday",
+		"Tuesday",
+		"Wednesday",
+		"Thursday",
+		"Friday",
+		"Saturday",
+		"Sunday"
+	]
+	
+	local days = Dict{Int64, Int64}()
 	
 	for i in songs
-		day = Dates.dayname(i.added)
+		day = Dates.dayofweek(i.added)
 	
 		if !haskey(days, day)
 			days[day] = 0
@@ -144,7 +155,7 @@ begin
 	end
 	
 	days = sort(collect(days), by=x -> x[1])
-	x = [x[1] for x in days]
+	x = [DAYS[x[1]] for x in days]
 	y = [x[2] for x in days]
 
 	bar(x, y)
@@ -1260,7 +1271,6 @@ version = "1.4.1+0"
 # ╠═44ed90cb-39a5-4486-8c57-ba3f50335992
 # ╟─00a50c59-575e-4be1-aacf-7fff83fb2942
 # ╠═77275bb2-5737-4574-85b9-030b5027ee50
-# ╠═03094966-fd29-49fc-af8d-7863bd852347
 # ╟─c98868ff-e13b-441a-9e6a-13691c522f19
 # ╟─8c5c238a-934a-4571-a5ad-16d269e33014
 # ╟─72defedb-bf2b-49a1-bbd1-41e9db171f77
