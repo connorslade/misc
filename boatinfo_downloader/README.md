@@ -12,3 +12,5 @@ This data includes each boat's:
 - Weight
 - Length
 - Id
+
+You can download the raw data [here](boatinfoworld_raw.csv), or if you want to see counts of boats by name (made with [counts.jl](counts.jl)) you can see that [here](https://connorcode.com/files/Misc/boatinfoworld_counts.csv).

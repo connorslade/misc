@@ -36,6 +36,7 @@ BIN_PATH = "V:\\Programming\\Projects\\misc\\playlist.bin"
 # ╔═╡ 44ed90cb-39a5-4486-8c57-ba3f50335992
 struct Song
     name::String
+	artists::Vector{String}
     id::String
     added::DateTime
     duration_ms::Int64
@@ -48,20 +49,26 @@ Will either load from a .json file and output a cache file, or read the cache fi
 
 # ╔═╡ 77275bb2-5737-4574-85b9-030b5027ee50
 begin
-	songs = Vector{Song}()
+	global songs = Vector{Song}()
 		
 	if isfile(BIN_PATH)
 		println("Loading liked songs from cache...")
-		songs = deserialize(BIN_PATH)
+		global songs = deserialize(BIN_PATH)
 	else
 		println("Loading liked songs from disk...")
-		raw_playlist = JSON.parsefile(PLAYLIST_BACKUP)
+		local raw_playlist = JSON.parsefile(PLAYLIST_BACKUP)
 	
 		for i in raw_playlist
-			track = i["track"]
-	
-			song = Song(
+			local track = i["track"]
+
+			local artists = Vector{String}()
+			for i in track["artists"]
+				push!(artists, i["name"])
+			end
+			
+			local song = Song(
 				track["name"],
+				artists,
 				track["id"],
 				Dates.DateTime(i["added_at"], "yyyy-mm-ddTHH:MM:SSZ"),
 				track["duration_ms"],
@@ -76,6 +83,22 @@ end
 
 # ╔═╡ c98868ff-e13b-441a-9e6a-13691c522f19
 md"## Plots"
+
+# ╔═╡ 9b239d53-0c93-49d7-bdf8-91327f748b98
+md"## Songs Over Time"
+
+# ╔═╡ 09e79c05-5da6-4780-9d05-6cb912f095f7
+begin
+	local days = Vector{Tuple{DateTime, Int64}}()
+	local inc = 0
+
+	for i in reverse(songs)
+		inc += 1
+		push!(days, (i.added, inc))
+	end
+
+	plot(days)
+end
 
 # ╔═╡ 8c5c238a-934a-4571-a5ad-16d269e33014
 md"## Songs Added per Month"
@@ -175,7 +198,7 @@ begin
 		end
 	end
 
-	println("$(round(explicit / total * 100))% explicit")
+	println("$(round(explicit / total * 1000) / 10)% explicit")
 	pie(["Explicit", "Not-Explicit"], [explicit, total - explicit])
 end
 
@@ -210,12 +233,18 @@ md"## Duplacate Songs"
 
 # ╔═╡ 48c5d1cc-0b2e-4c1a-801f-3f3b27a8825e
 begin
-	local counts = countmap([x.name for x in songs])
+	local counts = countmap([(x.name, x.artists) for x in songs])
+	local items = Vector{Tuple{Tuple{String, Vector{String}}, Int64}}()
 
 	for i in collect(counts)
 		if i[2] > 1
-			println("$(i[1]) $(repeat(" ", 30 - length(i[1])))- $(i[2])")
+			push!(items, ((i[1][1], i[1][2]), i[2]))
 		end
+	end
+
+	sort!(items, by=x->x[2], rev=true)
+	for i in items
+		println("$(i[1][1]) $(repeat(" ", 30 - length(i[1][1])))- $(i[2])")
 	end
 end
 
@@ -241,12 +270,14 @@ StatsBase = "~0.34.0"
 # ╟─b857b9ed-4761-4a18-abb4-bcafdeaf18dc
 # ╠═203245d0-3a59-11ee-172d-85f8475d0b24
 # ╟─ce486027-6e3d-45dc-af45-e193f7ac69c8
-# ╟─14ea412d-25ee-4aed-9735-6f1eebb88d3c
-# ╟─8a1eddfd-dbea-405f-9712-fb9c137329e1
+# ╠═14ea412d-25ee-4aed-9735-6f1eebb88d3c
+# ╠═8a1eddfd-dbea-405f-9712-fb9c137329e1
 # ╠═44ed90cb-39a5-4486-8c57-ba3f50335992
 # ╟─00a50c59-575e-4be1-aacf-7fff83fb2942
 # ╠═77275bb2-5737-4574-85b9-030b5027ee50
 # ╟─c98868ff-e13b-441a-9e6a-13691c522f19
+# ╟─9b239d53-0c93-49d7-bdf8-91327f748b98
+# ╟─09e79c05-5da6-4780-9d05-6cb912f095f7
 # ╟─8c5c238a-934a-4571-a5ad-16d269e33014
 # ╟─72defedb-bf2b-49a1-bbd1-41e9db171f77
 # ╟─57abe789-60b9-4766-9783-b556b2f90cf2
@@ -258,6 +289,6 @@ StatsBase = "~0.34.0"
 # ╟─f08d9d85-b26d-4a7d-a6f3-94100ad2b22d
 # ╟─4a89375d-293c-4099-9738-b4c886196c0c
 # ╟─6113e557-470a-4763-8e10-d304169fd786
-# ╟─48c5d1cc-0b2e-4c1a-801f-3f3b27a8825e
+# ╠═48c5d1cc-0b2e-4c1a-801f-3f3b27a8825e
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
