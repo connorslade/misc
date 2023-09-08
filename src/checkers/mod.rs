@@ -1,7 +1,6 @@
 use anyhow::Result;
 
 mod content_at_scale;
-mod smodin;
 mod writer;
 mod zerogpt;
 
@@ -21,5 +20,4 @@ pub const CHECKERS: &[&(dyn Checker + Send + Sync)] = &[
     &zerogpt::ZeroGPT,
     &content_at_scale::ContentAtScale,
     &writer::Writer,
-    &smodin::Smodin,
 ];
