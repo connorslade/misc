@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use indicatif::{MultiProgress, ProgressBar};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 
 mod checkers;
 
@@ -26,8 +26,16 @@ fn main() {
 
         thread::spawn(move || {
             match i.check(INPUT) {
-                Ok(v) => bar.finish_with_message(format!("{}: {}", i.name(), v)),
-                Err(e) => bar.finish_with_message(format!("{}: {}", i.name(), e)),
+                Ok(v) => {
+                    bar.finish_with_message(format!(
+                        "{}: {}% TGM",
+                        i.name(),
+                        (v * 1000.0).floor() / 10.0
+                    ));
+                }
+                Err(e) => {
+                    bar.finish_with_message(format!("{}: {}", i.name(), e));
+                }
             }
             bar.finish();
             barrier.wait();

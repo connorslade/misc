@@ -14,7 +14,6 @@ struct Response {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ResponseData {
-    /// From 0-100
     fake_percentage: f32,
 }
 
