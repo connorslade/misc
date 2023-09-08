@@ -9,6 +9,7 @@ members = [
     "soon",
     "spotify_stats",
     "study",
+    "tgm_metadetector",
     "world_wide_west",
     "youtube_stats",
 ]

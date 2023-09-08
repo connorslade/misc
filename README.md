@@ -11,5 +11,6 @@
 | [Scripts](/Scripts)                         | Old random scripts.                                                                                                                                                               |
 | [soon](/soon)                               | Little rust lib for filling struct fields after creation. Useful for self-referential structs. Very Unsafe.                                                                       |
 | [study](/study)                             | Free replacement for Quizlet's flash card mode.                                                                                                                                   |
+| [tgm_metadetector](/tgm_metadetector)       | Uses multiple 'AI text detectors' and returns how likely each one thinks is to be generated with a LLM.                                                                           |
 | [world_wide_west](/world_wide_west)         | Uses [Open-AI](https://openai.com)'s GPT-3 modal to generate webpages for the specified path.                                                                                     |
 | [youtube_stats](/youtube_stats)             | Estimates how much of your life you have spent watching Youtube. Engages in some API key shenanigans.                                                                             |
