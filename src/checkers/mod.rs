@@ -10,4 +10,4 @@ pub trait Checker {
     fn max(&self) -> u32;
 }
 
-pub const CHECKERS: &[&dyn Checker] = &[&zerogpt::ZeroGPT];
+pub const CHECKERS: &[&(dyn Checker + Send + Sync)] = &[&zerogpt::ZeroGPT];
