@@ -1,14 +1,14 @@
-use std::{borrow::Cow, fs, ops::Range};
+use std::{borrow::Cow, cell::RefCell, collections::BTreeMap, fs, ops::Range};
 
 use anyhow::Context;
-use indicatif::{ParallelProgressIterator, ProgressIterator};
-use lopdf::Document;
-use rayon::prelude::{IntoParallelIterator, ParallelIterator};
+use indicatif::ProgressIterator;
+use lopdf::{Destination, Document, Outline};
 use splitter::Splitter;
 
 mod splitter;
 
-const INP_FILE: &str = r"V:\Downloads\MathYouMissed.pdf";
+const INP_FILE: &str =
+    r"V:\Downloads\Ron Larson - Precalculus with Limits-Cengage Learning (2013).pdf";
 const OUT_DIR: &str = "output";
 
 struct Section {
@@ -28,27 +28,42 @@ fn main() -> anyhow::Result<()> {
     fs::create_dir_all(OUT_DIR).context("Creating folder")?;
 
     let doc = Document::load(INP_FILE).context("Loading Document")?;
-    let last_page = doc.get_pages().len();
-    let toc = doc.get_toc().context("Getting TOC")?;
+    let total_pages = doc.page_iter().count();
 
-    let splitter = TestSplitter;
-
+    let splitter = TestSplitter::default();
     let mut jobs: Vec<SplitterJob> = Vec::new();
-    let mut prev = None;
-    for i in &toc.toc {
-        println!("{} {}", i.level, i.title);
+
+    let mut destinations = BTreeMap::new();
+    let bookmarks = doc
+        .get_outlines(None, None, &mut destinations)
+        .context("Getting outlines")?
+        .context("No Outlines")?;
+
+    let mut outlines = Vec::new();
+    for i in bookmarks {
+        get_outlines(&mut outlines, &i, 0);
+    }
+
+    for i in outlines.iter().filter(|x| x.1 == 0) {
+        let title = i.0.title().unwrap().as_string().unwrap();
+        let reference = i.0.page().unwrap().as_reference().unwrap();
+        let page = doc
+            .page_iter()
+            .position(|x| x == reference)
+            .context("Page not found")?;
+
         if let Some(j) = jobs.last_mut() {
-            j.pages.end = i.page as usize;
+            j.pages.end = page;
         }
 
         let section = Section {
-            level: i.level,
-            name: i.title.clone(),
-            start: i.page as usize,
+            level: i.1,
+            name: title.into_owned(),
+            start: page,
             end: 0,
         };
 
-        if splitter.should_split(&prev, &section) {
+        if splitter.should_split(&section) {
             let filename = format!("{}/{}.pdf", OUT_DIR, section.name);
             let pages = section.start..section.end;
 
@@ -58,20 +73,24 @@ fn main() -> anyhow::Result<()> {
                 pages,
             });
         }
-
-        prev = Some(section);
     }
 
     if let Some(j) = jobs.last_mut() {
-        j.pages.end = last_page;
+        j.pages.end = total_pages;
     }
 
     let job_count = jobs.len() as u64;
     // jobs.into_par_iter()
     //  .progress_count(job_count)
     jobs.into_iter().progress_count(job_count).for_each(|job| {
-        let mut doc = job.doc;
-        doc.delete_pages(&job.pages.map(|x| x as u32).collect::<Vec<_>>());
+        let mut doc = Document::new();
+
+        for i in job.pages {
+            let page_id = job.doc.page_iter().nth(i).unwrap();
+            let page = job.doc.get_page_content(page_id).unwrap();
+            doc.add_page_contents(page_id, page).unwrap();
+        }
+
         if let Err(e) = doc.save(&job.filename) {
             eprintln!("Error saving {}: {}", job.filename, e);
         }
@@ -80,14 +99,41 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-struct TestSplitter;
+fn get_outlines(outlines: &mut Vec<(Destination, usize)>, outline: &Outline, depth: usize) {
+    match outline {
+        Outline::Destination(dest) => {
+            outlines.push((dest.clone(), depth));
+        }
+        Outline::SubOutlines(dest) => {
+            for i in dest {
+                get_outlines(outlines, i, depth + 1);
+            }
+        }
+    }
+}
+
+#[derive(Default)]
+struct TestSplitter {
+    last_name: RefCell<Option<String>>,
+}
 
 impl Splitter for TestSplitter {
     fn name<'a>(&self, section: &'a Section) -> Cow<'a, str> {
         Cow::Borrowed(&section.name)
     }
 
-    fn should_split(&self, prev: &Option<Section>, section: &Section) -> bool {
-        true
+    fn should_split(&self, section: &Section) -> bool {
+        if section.name.starts_with("Ch ") {
+            return true;
+        }
+
+        if let Some(last_name) = &*self.last_name.borrow() {
+            if last_name.starts_with("Ch ") {
+                return true;
+            }
+        }
+
+        self.last_name.replace(Some(section.name.clone()));
+        false
     }
 }
