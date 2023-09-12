@@ -6,6 +6,7 @@ members = [
     "boatinfo_downloader",
     "coding_bat_exporter",
     "dad_bot",
+    "pdf_splitter",
     "soon",
     "spotify_stats",
     "study",

@@ -67,5 +67,5 @@ impl<T> Drop for Soon<T> {
 }
 
 // shhhhh. its not really thread safe.
-unsafe impl<T> Send for Soon<T> {}
-unsafe impl<T> Sync for Soon<T> {}
+unsafe impl<T: Send> Send for Soon<T> {}
+unsafe impl<T: Sync> Sync for Soon<T> {}
