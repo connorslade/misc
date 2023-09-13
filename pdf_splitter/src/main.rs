@@ -4,7 +4,7 @@ use std::{
 
 use anyhow::Context;
 use indicatif::ProgressIterator;
-use lopdf::{dictionary, Destination, Document, Object, Outline, Stream, StringFormat};
+use lopdf::{dictionary, Destination, Document, Object, Outline, Stream, StringFormat, Dictionary};
 use regex::Regex;
 use splitter::Splitter;
 
@@ -90,25 +90,25 @@ fn main() -> anyhow::Result<()> {
         let pages_id = doc.new_object_id();
 
         // == todo
-        let font_id = doc.add_object(dictionary! {
-            // type of dictionary
-            "Type" => "Font",
-            // type of font, type1 is simple postscript font
-            "Subtype" => "Type1",
-            // basefont is postscript name of font for type1 font.
-            // See PDF reference document for more details
-            "BaseFont" => "Courier",
-        });
+        // let font_id = doc.add_object(dictionary! {
+        //     // type of dictionary
+        //     "Type" => "Font",
+        //     // type of font, type1 is simple postscript font
+        //     "Subtype" => "Type1",
+        //     // basefont is postscript name of font for type1 font.
+        //     // See PDF reference document for more details
+        //     "BaseFont" => "Courier",
+        // });
 
-        let resources_id = doc.add_object(dictionary! {
-            // fonts are actually triplely nested dictionaries. Fun!
-            "Font" => dictionary! {
-                // F1 is the font name used when writing text.
-                // It must be unique in the document. It does not
-                // have to be F1
-                "F1" => font_id,
-            },
-        });
+        // let resources_id = doc.add_object(dictionary! {
+        //     // fonts are actually triplely nested dictionaries. Fun!
+        //     "Font" => dictionary! {
+        //         // F1 is the font name used when writing text.
+        //         // It must be unique in the document. It does not
+        //         // have to be F1
+        //         "F1" => font_id,
+        //     },
+        // });
         // ==
 
         let mut pages = Vec::new();
@@ -116,11 +116,32 @@ fn main() -> anyhow::Result<()> {
             let page_id = job.doc.page_iter().nth(i).unwrap();
             let page = job.doc.get_page_content(page_id).unwrap();
 
+            let mut resources = Dictionary::new();
+
+            fn add_resource(resources: &mut Dictionary, resource: &Object) {
+                match resource {
+                    Object::Dictionary(old) => {
+                        let mut dict = Dictionary::new();
+                        for (key, value) in old.iter() {
+                            
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            for i in job.doc.get_page_resources(page_id).1 {
+                let resource = job.doc.get_object(i).unwrap();
+                add_resource(&mut resources, resource);
+            }
+            
+            let resources_id = doc.add_object(resources);
             let content_id = doc.add_object(Stream::new(dictionary! {}, page));
             let mut dict = dictionary! {
                 "Type" => "Page",
                 "Parent" => pages_id,
                 "Contents" => content_id,
+                "Resources" => resources_id,
             };
 
             if let Some(i) = job.doc.get_page_resources(page_id).0 {
@@ -142,7 +163,7 @@ fn main() -> anyhow::Result<()> {
             "Type" => "Pages",
             "Count" => pages.len() as u32,
             "Kids" => pages,
-            "Resources" => resources_id,
+            // "Resources" => resources_id,
             // a rectangle that defines the boundaries of the physical or digital media. This is the
             // "Page Size"
             "MediaBox" => vec![0.into(), 0.into(), 595.into(), 842.into()],
@@ -151,23 +172,15 @@ fn main() -> anyhow::Result<()> {
         doc.objects.insert(pages_id, Object::Dictionary(pages));
 
         dbg!(&job.doc.trailer);
-        let catalog = job
-            .doc
-            .get_object(
-                job.doc
-                    .trailer
-                    .get(b"Root")
-                    .unwrap()
-                    .as_reference()
-                    .unwrap(),
-            )
-            .unwrap();
-        let metadata = catalog
+        let old_root_catalog = job.doc.trailer.get(b"Root").unwrap().as_reference().unwrap();
+        let old_root_catalog = job.doc.get_object(old_root_catalog).unwrap();
+        let old_metadata = old_root_catalog
             .as_dict()
             .unwrap()
             .get(b"Metadata")
-            .unwrap()
-            .to_owned();
+            .unwrap();
+        let old_metadata = job.doc.get_object(old_metadata.as_reference().unwrap()).unwrap().to_owned();
+        let metadata = doc.add_object(dbg!(old_metadata));
         let catalog_id = doc.add_object(dictionary! {
             "Type" => "Catalog",
             "Pages" => pages_id,
@@ -178,6 +191,7 @@ fn main() -> anyhow::Result<()> {
         let mut info = dictionary! {
             "Type" => "Info",
             "Producer" => Object::String(b"pdf_splitter by Connor Slade [https://github.com/Basicprogrammer10/misc/tree/main/pdf_splitter]".to_vec(), StringFormat::Literal),
+            // ^ todo fix
         };
         if let Ok(i) = job.doc.trailer.get(b"Info") {
             let i = i.as_reference().unwrap();
