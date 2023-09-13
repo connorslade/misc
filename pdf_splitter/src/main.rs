@@ -5,6 +5,7 @@ use std::{
     fs,
     ops::Range,
     path::PathBuf,
+    rc::Rc,
     sync::Arc,
 };
 
@@ -16,7 +17,9 @@ use splitter::Splitter;
 
 mod splitter;
 
-const INP_FILE: &str = r"precalc.pdf";
+const PRODUCER: &[u8] = b"pdf_splitter by Connor Slade [https://github.com/Basicprogrammer10/misc/tree/main/pdf_splitter]";
+const INP_FILE: &str =
+    r"V:\Downloads\Ron Larson - Precalculus with Limits-Cengage Learning (2013).pdf";
 const OUT_DIR: &str = "./output/";
 
 struct Section {
@@ -94,56 +97,31 @@ fn main() -> anyhow::Result<()> {
         let mut doc = Document::new();
         let pages_id = doc.new_object_id();
 
-        // == todo
-        // let font_id = doc.add_object(dictionary! {
-        //     // type of dictionary
-        //     "Type" => "Font",
-        //     // type of font, type1 is simple postscript font
-        //     "Subtype" => "Type1",
-        //     // basefont is postscript name of font for type1 font.
-        //     // See PDF reference document for more details
-        //     "BaseFont" => "Courier",
-        // });
-
-        // let resources_id = doc.add_object(dictionary! {
-        //     // fonts are actually triplely nested dictionaries. Fun!
-        //     "Font" => dictionary! {
-        //         // F1 is the font name used when writing text.
-        //         // It must be unique in the document. It does not
-        //         // have to be F1
-        //         "F1" => font_id,
-        //     },
-        // });
-        // ==
-
         let mut pages = Vec::new();
         for i in job.pages {
             let page_id = job.doc.page_iter().nth(i).unwrap();
             let page = job.doc.get_page_content(page_id).unwrap();
 
+            let resources = job
+                .doc
+                .get_dictionary(page_id)
+                .unwrap()
+                .get(b"Resources")
+                .unwrap()
+                .to_owned();
 
-            let resources = job.doc.get_dictionary(page_id).unwrap().get(b"Resources").unwrap().to_owned();
-           let resources = clone_obj_inner(RefCell::new(doc.clone()), resources).unwrap();
-            
+            let this_doc = Rc::new(RefCell::new(doc));
+            let resources = clone_obj(this_doc.clone(), job.doc.clone(), resources).unwrap();
+            doc = Rc::try_unwrap(this_doc).unwrap().into_inner();
+
             let resources_id = doc.add_object(resources);
             let content_id = doc.add_object(Stream::new(dictionary! {}, page));
-            let mut dict = dictionary! {
+            let dict = dictionary! {
                 "Type" => "Page",
                 "Parent" => pages_id,
                 "Contents" => content_id,
                 "Resources" => resources_id,
             };
-
-            if let Some(i) = job.doc.get_page_resources(page_id).0 {
-                for (key, value) in i.iter() {
-                    if dict.has(key) {
-                        continue;
-                    }
-
-                    println!("{}: {:?}", String::from_utf8_lossy(key), value);
-                    dict.set(key.to_owned(), value.to_owned());
-                }
-            }
 
             let page_id = doc.add_object(dict);
             pages.push(page_id.into());
@@ -162,14 +140,24 @@ fn main() -> anyhow::Result<()> {
         doc.objects.insert(pages_id, Object::Dictionary(pages));
 
         dbg!(&job.doc.trailer);
-        let old_root_catalog = job.doc.trailer.get(b"Root").unwrap().as_reference().unwrap();
+        let old_root_catalog = job
+            .doc
+            .trailer
+            .get(b"Root")
+            .unwrap()
+            .as_reference()
+            .unwrap();
         let old_root_catalog = job.doc.get_object(old_root_catalog).unwrap();
         let old_metadata = old_root_catalog
             .as_dict()
             .unwrap()
             .get(b"Metadata")
             .unwrap();
-        let old_metadata = job.doc.get_object(old_metadata.as_reference().unwrap()).unwrap().to_owned();
+        let old_metadata = job
+            .doc
+            .get_object(old_metadata.as_reference().unwrap())
+            .unwrap()
+            .to_owned();
         let metadata = doc.add_object(dbg!(old_metadata));
         let catalog_id = doc.add_object(dictionary! {
             "Type" => "Catalog",
@@ -177,10 +165,9 @@ fn main() -> anyhow::Result<()> {
             "Metadata" => metadata,
         });
 
-    
         let mut info = dictionary! {
             "Type" => "Info",
-            "Producer" => Object::String(b"pdf_splitter by Connor Slade [https://github.com/Basicprogrammer10/misc/tree/main/pdf_splitter]".to_vec(), StringFormat::Literal),
+            "Producer" => Object::String(PRODUCER.to_vec(), StringFormat::Literal),
             // ^ todo fix
         };
         if let Ok(i) = job.doc.trailer.get(b"Info") {
@@ -222,21 +209,57 @@ fn get_outlines(outlines: &mut Vec<(Destination, usize)>, outline: &Outline, dep
     }
 }
 
-fn clone_obj(doc: &Document, obj: impl Fn(&Document) -> &Object) -> anyhow::Result<Object> {
-    let obj = obj(doc).to_owned();
-    let doc = RefCell::new(doc.clone());
-    clone_obj_inner(doc, obj)
-}
+fn clone_obj(
+    doc: Rc<RefCell<Document>>,
+    old_doc: Arc<Document>,
+    obj: Object,
+) -> anyhow::Result<Object> {
+    match obj {
+        Object::Array(array) => {
+            let array = array
+                .into_iter()
+                .map(|x| clone_obj(doc.clone(), old_doc.clone(), x))
+                .collect::<anyhow::Result<Vec<_>>>()?;
+            Ok(Object::Array(array))
+        }
+        Object::Dictionary(dict) => {
+            let mut new_dict = Dictionary::new();
+            for (key, value) in dict.into_iter() {
+                let value = clone_obj(doc.clone(), old_doc.clone(), value.to_owned())?;
+                new_dict.set(key.to_owned(), value);
+            }
+            Ok(Object::Dictionary(new_dict))
+        }
+        Object::Stream(stream) => {
+            let mut new_dict = Dictionary::new();
+            for (key, value) in stream.dict.iter() {
+                let value = clone_obj(doc.clone(), old_doc.clone(), value.to_owned())?;
+                new_dict.set(key.to_owned(), value);
+            }
+            let stream =
+                Stream::new(new_dict, stream.content).with_compression(stream.allows_compression);
+            Ok(Object::Stream(stream))
+        }
+        Object::Reference(id) => {
+            let old_obj = match old_doc.get_object(id) {
+                Ok(i) => i.to_owned(),
+                Err(e) => {
+                    eprintln!("Error getting object: {}", e);
+                    return Ok(Object::Null);
+                }
+            };
 
-fn clone_obj_inner(doc: RefCell<Document>, obj: Object) -> anyhow::Result<Object> {
-    if let Object::Reference(id) = obj {
-        let old_obj = doc.borrow().get_object(id).unwrap().to_owned();
-        let obj = clone_obj_inner(doc.clone(), old_obj)?;
-        let obj = doc.borrow_mut().add_object(obj);
-        return Ok(Object::Reference(obj));
+            let obj = clone_obj(doc.clone(), old_doc, old_obj)?;
+            let obj = doc.borrow_mut().add_object(obj);
+            return Ok(Object::Reference(obj));
+        }
+        Object::Null
+        | Object::Boolean(_)
+        | Object::Integer(_)
+        | Object::Real(_)
+        | Object::Name(_)
+        | Object::String(..) => Ok(obj),
     }
-
-    Ok(obj)
 }
 
 #[derive(Default)]
