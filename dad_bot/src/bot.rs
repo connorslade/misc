@@ -58,12 +58,24 @@ impl EventHandler for Bot {
         }
 
         if consts::IM_REGEX.is_match(&message) {
-            println!(
-                "[*] Added dadable from `{}` in `{}`",
-                msg.author.name, msg.channel_id
-            );
-            msg.react(&ctx.http, '👀').await.unwrap();
-            self.db.lock().add_dadable(&msg).unwrap();
+            if consts::AUTO_SHUT {
+                if consts::SHUT_REGEX.is_match(&message) {
+                    return;
+                }
+
+                println!(
+                    "[*] Shutting message from `{}` in `{}`",
+                    msg.author.name, msg.channel_id
+                );
+                msg.channel_id.say(&ctx.http, "(shut)").await.unwrap();
+            } else {
+                println!(
+                    "[*] Added dadable from `{}` in `{}`",
+                    msg.author.name, msg.channel_id
+                );
+                msg.react(&ctx.http, '👀').await.unwrap();
+                self.db.lock().add_dadable(&msg).unwrap();
+            }
         }
 
         async fn check_dadding(this: &Bot, ctx: &Context, msg: &Message) -> bool {
@@ -73,18 +85,18 @@ impl EventHandler for Bot {
                 .get_dadable(msg.guild_id.unwrap().0, msg.channel_id.0)
                 .unwrap();
 
-            let dadable = match dadable {
-                Some(i) => i,
-                None => return false,
+            let Some(dadable) = dadable else {
+                return false;
             };
 
-            // todo: we both know this is stupid
             let epoch = SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
                 .as_secs();
 
-            if dadable.author_id == msg.author.id || dadable.timestamp + DAD_TIMEOUT < epoch {
+            if dadable.author_id == msg.author.id
+                || (DAD_TIMEOUT > 0 && dadable.timestamp + DAD_TIMEOUT < epoch)
+            {
                 return false;
             }
 

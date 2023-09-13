@@ -1,0 +1,7 @@
+services:
+  discord-bot:
+    image: dad_bot
+    build: .
+    volumes:
+      - ./.env:/dad_bot/.env:ro
+      - ./data:/dad_bot/data
