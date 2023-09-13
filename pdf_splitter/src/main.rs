@@ -1,8 +1,11 @@
-use std::{borrow::Cow, cell::RefCell, collections::BTreeMap, fs, ops::Range, path::PathBuf};
+use std::{
+    borrow::Cow, cell::RefCell, collections::BTreeMap, fs, ops::Range, path::PathBuf, sync::Arc,
+};
 
 use anyhow::Context;
 use indicatif::ProgressIterator;
-use lopdf::{dictionary, Destination, Document, Object, Outline, Stream};
+use lopdf::{dictionary, Destination, Document, Object, Outline, Stream, StringFormat};
+use regex::Regex;
 use splitter::Splitter;
 
 mod splitter;
@@ -19,7 +22,7 @@ struct Section {
 }
 
 struct SplitterJob {
-    doc: Document,
+    doc: Arc<Document>,
     filename: PathBuf,
     pages: Range<usize>,
 }
@@ -27,7 +30,7 @@ struct SplitterJob {
 fn main() -> anyhow::Result<()> {
     fs::create_dir_all(OUT_DIR).context("Creating folder")?;
 
-    let doc = Document::load(INP_FILE).context("Loading Document")?;
+    let doc = Arc::new(Document::load(INP_FILE).context("Loading Document")?);
     let total_pages = doc.page_iter().count();
 
     let splitter = TestSplitter::default();
@@ -114,18 +117,31 @@ fn main() -> anyhow::Result<()> {
             let page = job.doc.get_page_content(page_id).unwrap();
 
             let content_id = doc.add_object(Stream::new(dictionary! {}, page));
-            let page_id = doc.add_object(dictionary! {
+            let mut dict = dictionary! {
                 "Type" => "Page",
                 "Parent" => pages_id,
                 "Contents" => content_id,
-            });
+            };
+
+            if let Some(i) = job.doc.get_page_resources(page_id).0 {
+                for (key, value) in i.iter() {
+                    if dict.has(key) {
+                        continue;
+                    }
+
+                    println!("{}: {:?}", String::from_utf8_lossy(key), value);
+                    dict.set(key.to_owned(), value.to_owned());
+                }
+            }
+
+            let page_id = doc.add_object(dict);
             pages.push(page_id.into());
         }
 
         let pages = dictionary! {
             "Type" => "Pages",
-            "Kids" => dbg!(pages),
-            "Count" => 1,
+            "Count" => pages.len() as u32,
+            "Kids" => pages,
             "Resources" => resources_id,
             // a rectangle that defines the boundaries of the physical or digital media. This is the
             // "Page Size"
@@ -134,17 +150,56 @@ fn main() -> anyhow::Result<()> {
 
         doc.objects.insert(pages_id, Object::Dictionary(pages));
 
+        dbg!(&job.doc.trailer);
+        let catalog = job
+            .doc
+            .get_object(
+                job.doc
+                    .trailer
+                    .get(b"Root")
+                    .unwrap()
+                    .as_reference()
+                    .unwrap(),
+            )
+            .unwrap();
+        let metadata = catalog
+            .as_dict()
+            .unwrap()
+            .get(b"Metadata")
+            .unwrap()
+            .to_owned();
         let catalog_id = doc.add_object(dictionary! {
             "Type" => "Catalog",
             "Pages" => pages_id,
+            "Metadata" => metadata,
         });
 
+    
+        let mut info = dictionary! {
+            "Type" => "Info",
+            "Producer" => Object::String(b"pdf_splitter by Connor Slade [https://github.com/Basicprogrammer10/misc/tree/main/pdf_splitter]".to_vec(), StringFormat::Literal),
+        };
+        if let Ok(i) = job.doc.trailer.get(b"Info") {
+            let i = i.as_reference().unwrap();
+            let i = job.doc.get_object(i).unwrap().as_dict().unwrap();
+            for (key, value) in i.iter() {
+                if info.has(key) {
+                    continue;
+                }
+
+                info.set(key.to_owned(), value.to_owned());
+            }
+        }
+        let info_id = doc.add_object(info);
+
         doc.trailer.set("Root", catalog_id);
+        doc.trailer.set("Info", info_id);
         // doc.compress();
 
         if let Err(e) = doc.save(&job.filename) {
             eprintln!("Error saving {:?}: {}", job.filename, e);
         }
+        ::std::process::exit(0);
     });
 
     Ok(())
@@ -170,21 +225,32 @@ struct TestSplitter {
 
 impl Splitter for TestSplitter {
     fn name<'a>(&self, section: &'a Section) -> Cow<'a, str> {
-        Cow::Borrowed(&section.name)
+        let regex = Regex::new(r"Ch (\d+): (.*)").unwrap();
+
+        if let Some(caps) = regex.captures(&section.name) {
+            let chapter = caps.get(1).unwrap().as_str();
+            let title = caps.get(2).unwrap().as_str();
+
+            return Cow::Owned(format!("Ch{}-{}", chapter, title));
+        }
+
+        Cow::Owned(section.name.replace(' ', "-"))
     }
 
     fn should_split(&self, section: &Section) -> bool {
+        let mut res = false;
+
         if section.name.starts_with("Ch ") {
-            return true;
+            res = true;
         }
 
         if let Some(last_name) = &*self.last_name.borrow() {
             if last_name.starts_with("Ch ") {
-                return true;
+                res = true;
             }
         }
 
         self.last_name.replace(Some(section.name.clone()));
-        false
+        res
     }
 }
