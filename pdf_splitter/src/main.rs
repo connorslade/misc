@@ -4,9 +4,9 @@ use std::{
 };
 
 use anyhow::Context;
-use indicatif::{ParallelProgressIterator, ProgressIterator};
+use indicatif::ParallelProgressIterator;
 use lopdf::{dictionary, Destination, Dictionary, Document, Object, Outline, Stream, StringFormat};
-use rayon::prelude::{IntoParallelIterator, ParallelBridge, ParallelIterator};
+use rayon::prelude::{ParallelBridge, ParallelIterator};
 use regex::Regex;
 use splitter::Splitter;
 
