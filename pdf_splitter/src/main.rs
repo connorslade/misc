@@ -1,17 +1,22 @@
 use std::{
-    borrow::Cow, cell::RefCell, collections::BTreeMap, fs, ops::Range, path::PathBuf, sync::Arc,
+    borrow::Cow,
+    cell::{Ref, RefCell},
+    collections::BTreeMap,
+    fs,
+    ops::Range,
+    path::PathBuf,
+    sync::Arc,
 };
 
 use anyhow::Context;
 use indicatif::ProgressIterator;
-use lopdf::{dictionary, Destination, Document, Object, Outline, Stream, StringFormat, Dictionary};
+use lopdf::{dictionary, Destination, Dictionary, Document, Object, Outline, Stream, StringFormat};
 use regex::Regex;
 use splitter::Splitter;
 
 mod splitter;
 
-const INP_FILE: &str =
-    r"V:\Downloads\Ron Larson - Precalculus with Limits-Cengage Learning (2013).pdf";
+const INP_FILE: &str = r"precalc.pdf";
 const OUT_DIR: &str = "./output/";
 
 struct Section {
@@ -116,24 +121,9 @@ fn main() -> anyhow::Result<()> {
             let page_id = job.doc.page_iter().nth(i).unwrap();
             let page = job.doc.get_page_content(page_id).unwrap();
 
-            let mut resources = Dictionary::new();
 
-            fn add_resource(resources: &mut Dictionary, resource: &Object) {
-                match resource {
-                    Object::Dictionary(old) => {
-                        let mut dict = Dictionary::new();
-                        for (key, value) in old.iter() {
-                            
-                        }
-                    }
-                    _ => {}
-                }
-            }
-
-            for i in job.doc.get_page_resources(page_id).1 {
-                let resource = job.doc.get_object(i).unwrap();
-                add_resource(&mut resources, resource);
-            }
+            let resources = job.doc.get_dictionary(page_id).unwrap().get(b"Resources").unwrap().to_owned();
+           let resources = clone_obj_inner(RefCell::new(doc.clone()), resources).unwrap();
             
             let resources_id = doc.add_object(resources);
             let content_id = doc.add_object(Stream::new(dictionary! {}, page));
@@ -230,6 +220,23 @@ fn get_outlines(outlines: &mut Vec<(Destination, usize)>, outline: &Outline, dep
             }
         }
     }
+}
+
+fn clone_obj(doc: &Document, obj: impl Fn(&Document) -> &Object) -> anyhow::Result<Object> {
+    let obj = obj(doc).to_owned();
+    let doc = RefCell::new(doc.clone());
+    clone_obj_inner(doc, obj)
+}
+
+fn clone_obj_inner(doc: RefCell<Document>, obj: Object) -> anyhow::Result<Object> {
+    if let Object::Reference(id) = obj {
+        let old_obj = doc.borrow().get_object(id).unwrap().to_owned();
+        let obj = clone_obj_inner(doc.clone(), old_obj)?;
+        let obj = doc.borrow_mut().add_object(obj);
+        return Ok(Object::Reference(obj));
+    }
+
+    Ok(obj)
 }
 
 #[derive(Default)]
