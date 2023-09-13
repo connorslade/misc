@@ -1,11 +1,5 @@
 use std::{
-    borrow::Cow,
-    cell::{Ref, RefCell},
-    collections::BTreeMap,
-    fs,
-    ops::Range,
-    path::PathBuf,
-    rc::Rc,
+    borrow::Cow, cell::RefCell, collections::BTreeMap, fs, ops::Range, path::PathBuf, rc::Rc,
     sync::Arc,
 };
 
@@ -102,13 +96,8 @@ fn main() -> anyhow::Result<()> {
             let page_id = job.doc.page_iter().nth(i).unwrap();
             let page = job.doc.get_page_content(page_id).unwrap();
 
-            let resources = job
-                .doc
-                .get_dictionary(page_id)
-                .unwrap()
-                .get(b"Resources")
-                .unwrap()
-                .to_owned();
+            let old_page = job.doc.get_dictionary(page_id).unwrap();
+            let resources = old_page.get(b"Resources").unwrap().to_owned();
 
             let this_doc = Rc::new(RefCell::new(doc));
             let resources = clone_obj(this_doc.clone(), job.doc.clone(), resources).unwrap();
@@ -116,30 +105,38 @@ fn main() -> anyhow::Result<()> {
 
             let resources_id = doc.add_object(resources);
             let content_id = doc.add_object(Stream::new(dictionary! {}, page));
-            let dict = dictionary! {
+            let mut dict = dictionary! {
                 "Type" => "Page",
                 "Parent" => pages_id,
                 "Contents" => content_id,
                 "Resources" => resources_id,
             };
 
+            for (key, value) in old_page.into_iter() {
+                if dict.has(key) {
+                    continue;
+                }
+
+                let this_doc = Rc::new(RefCell::new(doc));
+                let value = clone_obj(this_doc.clone(), job.doc.clone(), value.to_owned()).unwrap();
+                doc = Rc::try_unwrap(this_doc).unwrap().into_inner();
+
+                dict.set(key.to_owned(), value);
+            }
+
             let page_id = doc.add_object(dict);
             pages.push(page_id.into());
         }
 
-        let pages = dictionary! {
-            "Type" => "Pages",
-            "Count" => pages.len() as u32,
-            "Kids" => pages,
-            // "Resources" => resources_id,
-            // a rectangle that defines the boundaries of the physical or digital media. This is the
-            // "Page Size"
-            "MediaBox" => vec![0.into(), 0.into(), 595.into(), 842.into()],
-        };
+        doc.objects.insert(
+            pages_id,
+            Object::Dictionary(dictionary! {
+                "Type" => "Pages",
+                "Count" => pages.len() as u32,
+                "Kids" => pages,
+            }),
+        );
 
-        doc.objects.insert(pages_id, Object::Dictionary(pages));
-
-        dbg!(&job.doc.trailer);
         let old_root_catalog = job
             .doc
             .trailer
@@ -167,12 +164,10 @@ fn main() -> anyhow::Result<()> {
 
         let mut info = dictionary! {
             "Type" => "Info",
-            "Producer" => Object::String(PRODUCER.to_vec(), StringFormat::Literal),
-            // ^ todo fix
         };
         if let Ok(i) = job.doc.trailer.get(b"Info") {
             let i = i.as_reference().unwrap();
-            let i = job.doc.get_object(i).unwrap().as_dict().unwrap();
+            let i = job.doc.get_dictionary(i).unwrap();
             for (key, value) in i.iter() {
                 if info.has(key) {
                     continue;
@@ -181,11 +176,15 @@ fn main() -> anyhow::Result<()> {
                 info.set(key.to_owned(), value.to_owned());
             }
         }
+        info.set(
+            "Producer",
+            Object::String(PRODUCER.to_vec(), StringFormat::Literal),
+        );
         let info_id = doc.add_object(info);
 
         doc.trailer.set("Root", catalog_id);
         doc.trailer.set("Info", info_id);
-        // doc.compress();
+        doc.compress();
 
         if let Err(e) = doc.save(&job.filename) {
             eprintln!("Error saving {:?}: {}", job.filename, e);
