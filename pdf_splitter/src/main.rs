@@ -1,11 +1,19 @@
 use std::{
-    borrow::Cow, cell::RefCell, collections::BTreeMap, fs, ops::Range, path::PathBuf, rc::Rc,
+    borrow::Cow,
+    cell::RefCell,
+    collections::{BTreeMap, HashMap},
+    fs,
+    ops::Range,
+    path::PathBuf,
+    rc::Rc,
     sync::Arc,
 };
 
 use anyhow::Context;
 use indicatif::ParallelProgressIterator;
-use lopdf::{dictionary, Destination, Dictionary, Document, Object, Outline, Stream, StringFormat};
+use lopdf::{
+    dictionary, Destination, Dictionary, Document, Object, ObjectId, Outline, Stream, StringFormat,
+};
 use rayon::prelude::{ParallelBridge, ParallelIterator};
 use regex::Regex;
 use splitter::Splitter;
@@ -13,8 +21,7 @@ use splitter::Splitter;
 mod splitter;
 
 const PRODUCER: &[u8] = b"pdf_splitter by Connor Slade [https://github.com/Basicprogrammer10/misc/tree/main/pdf_splitter]";
-const INP_FILE: &str =
-    r"V:\Downloads\Ron Larson - Precalculus with Limits-Cengage Learning (2013).pdf";
+const INP_FILE: &str = r"precalc.pdf";
 const OUT_DIR: &str = "./output/";
 
 struct Section {
@@ -116,6 +123,7 @@ fn main() -> anyhow::Result<()> {
         .par_bridge()
         .progress_count(job_count)
         .for_each(|job| {
+            let object_cache = Rc::new(RefCell::new(HashMap::new()));
             let mut doc = Document::new();
             let pages_id = doc.new_object_id();
 
@@ -134,8 +142,12 @@ fn main() -> anyhow::Result<()> {
                 let old_page = job.doc.get_dictionary(page_id).unwrap();
                 if let Ok(resources) = old_page.get(b"Resources") {
                     let this_doc = Rc::new(RefCell::new(doc));
-                    let resources =
-                        clone_obj(this_doc.clone(), job.doc.clone(), resources.to_owned());
+                    let resources = clone_obj(
+                        this_doc.clone(),
+                        job.doc.clone(),
+                        object_cache.clone(),
+                        resources.to_owned(),
+                    );
                     doc = Rc::try_unwrap(this_doc).unwrap().into_inner();
 
                     let resources_id = doc.add_object(resources);
@@ -148,7 +160,12 @@ fn main() -> anyhow::Result<()> {
                     }
 
                     let this_doc = Rc::new(RefCell::new(doc));
-                    let value = clone_obj(this_doc.clone(), job.doc.clone(), value.to_owned());
+                    let value = clone_obj(
+                        this_doc.clone(),
+                        job.doc.clone(),
+                        object_cache.clone(),
+                        value.to_owned(),
+                    );
                     doc = Rc::try_unwrap(this_doc).unwrap().into_inner();
 
                     dict.set(key.to_owned(), value);
@@ -238,19 +255,29 @@ fn get_outlines(outlines: &mut Vec<(Destination, usize)>, outline: &Outline, dep
 }
 
 // use hashmap to avoid including the same object twice
-fn clone_obj(doc: Rc<RefCell<Document>>, old_doc: Arc<Document>, obj: Object) -> Object {
+fn clone_obj(
+    doc: Rc<RefCell<Document>>,
+    old_doc: Arc<Document>,
+    cache: Rc<RefCell<HashMap<ObjectId, ObjectId>>>,
+    obj: Object,
+) -> Object {
     match obj {
         Object::Array(array) => {
             let array = array
                 .into_iter()
-                .map(|x| clone_obj(doc.clone(), old_doc.clone(), x))
+                .map(|x| clone_obj(doc.clone(), old_doc.clone(), cache.clone(), x))
                 .collect::<Vec<_>>();
             Object::Array(array)
         }
         Object::Dictionary(dict) => {
             let mut new_dict = Dictionary::new();
             for (key, value) in dict.into_iter() {
-                let value = clone_obj(doc.clone(), old_doc.clone(), value.to_owned());
+                let value = clone_obj(
+                    doc.clone(),
+                    old_doc.clone(),
+                    cache.clone(),
+                    value.to_owned(),
+                );
                 new_dict.set(key.to_owned(), value);
             }
             Object::Dictionary(new_dict)
@@ -258,7 +285,12 @@ fn clone_obj(doc: Rc<RefCell<Document>>, old_doc: Arc<Document>, obj: Object) ->
         Object::Stream(stream) => {
             let mut new_dict = Dictionary::new();
             for (key, value) in stream.dict.iter() {
-                let value = clone_obj(doc.clone(), old_doc.clone(), value.to_owned());
+                let value = clone_obj(
+                    doc.clone(),
+                    old_doc.clone(),
+                    cache.clone(),
+                    value.to_owned(),
+                );
                 new_dict.set(key.to_owned(), value);
             }
             let stream =
@@ -266,14 +298,21 @@ fn clone_obj(doc: Rc<RefCell<Document>>, old_doc: Arc<Document>, obj: Object) ->
             Object::Stream(stream)
         }
         Object::Reference(id) => {
+            // Only add objects once per document
+            // On one document I got an 88% cache rate
+            if let Some(new_id) = cache.borrow().get(&id) {
+                return Object::Reference(*new_id);
+            }
+
             let old_obj = match old_doc.get_object(id) {
                 Ok(i) => i.to_owned(),
                 Err(_) => return Object::Null,
             };
 
-            let obj = clone_obj(doc.clone(), old_doc, old_obj);
+            let obj = clone_obj(doc.clone(), old_doc, cache.clone(), old_obj);
             let obj = doc.borrow_mut().add_object(obj);
-            return Object::Reference(obj);
+            cache.borrow_mut().insert(id, obj);
+            Object::Reference(obj)
         }
         Object::Null
         | Object::Boolean(_)
