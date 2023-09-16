@@ -37,7 +37,7 @@ pub fn split(job: SplitterJob, old_doc: Arc<Document>, out_dir: &PathBuf) {
         }
 
         for (key, value) in old_page.into_iter() {
-            if dict.has(key) {
+            if dict.has(key) || key == b"Annots" {
                 continue;
             }
 
@@ -72,12 +72,8 @@ pub fn split(job: SplitterJob, old_doc: Arc<Document>, out_dir: &PathBuf) {
         .unwrap()
         .as_reference()
         .unwrap();
-    let old_root_catalog = old_doc.get_object(old_root_catalog).unwrap();
-    let old_metadata = old_root_catalog
-        .as_dict()
-        .unwrap()
-        .get(b"Metadata")
-        .unwrap();
+    let old_root_catalog = old_doc.get_dictionary(old_root_catalog).unwrap();
+    let old_metadata = old_root_catalog.get(b"Metadata").unwrap();
     let old_metadata = old_doc
         .get_object(old_metadata.as_reference().unwrap())
         .unwrap()

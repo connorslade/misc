@@ -8,7 +8,7 @@ use regex::Regex;
     name = "pdf_splitter",
     version = env!("CARGO_PKG_VERSION"),
     author = "Connor Slade <connor@connorcode.com>",
-    about = "Split PDF files by section",    
+    about = "Split PDF files by section",
 )]
 #[rustfmt::skip]
 pub struct Args {
