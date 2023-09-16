@@ -1,4 +1,4 @@
-use std::{fs, sync::Arc};
+use std::{borrow::Cow, fs, sync::Arc};
 
 use anyhow::Context;
 use args::Args;
@@ -8,25 +8,32 @@ use lopdf::Document;
 use rayon::prelude::{ParallelBridge, ParallelIterator};
 
 mod args;
+mod pdf;
 mod splitter;
-use splitter::{jobs, split};
+use splitter::{jobs, Section, Special, Splitter};
 
 const PRODUCER: &[u8] = b"pdf_splitter by Connor Slade [https://github.com/Basicprogrammer10/misc/tree/main/pdf_splitter]";
 
 fn main() -> anyhow::Result<()> {
-    let args = Args::parse();
+    let args = Arc::new(Args::parse());
 
     println!(
         "[*] Loading Document `{}`",
         args.input_file.to_string_lossy()
     );
     let doc = Arc::new(Document::load(&args.input_file).context("Loading Document")?);
-    let jobs = jobs(doc.clone(), &args)?;
+    let splitter = ArgSplitter { args: args.clone() };
+    let jobs = jobs(doc.clone(), &splitter)?;
 
     if args.dry_run {
         println!("[*] Dry run, not saving files");
         for job in jobs {
-            println!(" | {}", job.filename.to_string_lossy());
+            println!(
+                " | [{:0>3}-{:0>3}] {}",
+                job.pages.start,
+                job.pages.end,
+                job.filename.to_string_lossy()
+            );
         }
         return Ok(());
     }
@@ -41,44 +48,36 @@ fn main() -> anyhow::Result<()> {
     jobs.into_iter()
         .par_bridge()
         .progress_count(job_count)
-        .for_each(|x| split(x, &args.output_dir));
+        .for_each(|x| pdf::split(x, doc.clone(), &args.output_dir));
 
     Ok(())
 }
 
-// #[derive(Default)]
-// struct TestSplitter {
-//     last_name: RefCell<Option<String>>,
-// }
+struct ArgSplitter {
+    args: Arc<Args>,
+}
 
-// impl Splitter for TestSplitter {
-//     fn name<'a>(&self, section: &'a Section) -> Cow<'a, str> {
-//         let regex = Regex::new(r"Ch (\d+): (.*)").unwrap();
+impl Splitter for ArgSplitter {
+    fn name<'a>(&self, section: &'a Section) -> Cow<'a, str> {
+        match section.special {
+            Special::StartSlack => return Cow::Owned(self.args.start_name.to_owned()),
+            Special::EndSlack => return Cow::Owned(self.args.end_name.to_owned()),
+            _ => {}
+        }
 
-//         if let Some(caps) = regex.captures(&section.name) {
-//             let chapter = caps.get(1).unwrap().as_str();
-//             let title = caps.get(2).unwrap().as_str();
+        let mut name = self
+            .args
+            .rename_captures
+            .replace_all(&section.name, &self.args.rename_format);
 
-//             return Cow::Owned(format!("Ch{}-P{}-{}", chapter, section.start, title));
-//         }
+        if !self.args.allow_unchecked {
+            name = Cow::Owned(name.replace(' ', "_").replace(':', ""));
+        }
 
-//         Cow::Owned(section.name.replace(' ', "-").replace(':', ""))
-//     }
+        name
+    }
 
-//     fn should_split(&self, section: &Section) -> bool {
-//         let mut res = false;
-
-//         if section.name.starts_with("Ch ") {
-//             res = true;
-//         }
-
-//         if let Some(last_name) = &*self.last_name.borrow() {
-//             if last_name.starts_with("Ch ") {
-//                 res = true;
-//             }
-//         }
-
-//         self.last_name.replace(Some(section.name.clone()));
-//         res
-//     }
-// }
+    fn should_split(&self, section: &Section) -> bool {
+        self.args.should_split.is_match(&section.name)
+    }
+}

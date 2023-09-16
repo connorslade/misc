@@ -28,13 +28,15 @@ pub struct Args {
     /// Dry run, don't save any files.
     #[clap(long, short)]
     pub dry_run: bool,
-    
-    // == Optional Args ==
-    #[clap(long, short, default_value = "Title")]
-    pub start_name: String,
-    #[clap(long, short, default_value = "End")]
-    pub end_name: String,
-    /// Doesn't replace spaces and colons in the section name.
+    /// Don't replace spaces and colons in the section name.
     #[clap(long)]
     pub allow_unchecked: bool,
+
+    // == Optional Args ==
+    /// The name of the first section.
+    #[clap(long, short, default_value = "Title")]
+    pub start_name: String,
+    /// The name of the last section.
+    #[clap(long, short, default_value = "End")]
+    pub end_name: String,
 }
