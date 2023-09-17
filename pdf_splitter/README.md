@@ -1,7 +1,11 @@
 # pdf_splitter
 
 A CLI tool for automatically splitting a PDF into many smaller PDFs by section.
-As an example, I split [this PDF](<https://connorcode.com/files/Books/Precalculus%20with%20Limits%20-%20Ron%20Larson%20(2013).pdf>) into
+As an example, I split the [PDF 1.4 Reference](https://connorcode.com/files/Books/PDF%201.4%20Refrence/pdfreference1.4.pdf) into 19 [separate chapter PDFs](https://connorcode.com/files/Books/PDF%201.4%20Refrence).
+
+> [!WARNING]
+> Because I haven't accounted for the entire PDF spec, some PDFs might not work after being split.
+> If this happens, you can try converting it to a [PDF/A](https://en.wikipedia.org/wiki/PDF/A) file and trying again.
 
 ## Usage
 
@@ -23,3 +27,9 @@ Options:
   -h, --help                     Print help
   -V, --version                  Print version
 ```
+
+### Example
+
+For the example PDF that I split I used the following command:
+
+`pdf_splitter pdfreference1.4-1.pdf output "(\d|[A-Z]) " "(\d|[A-Z])  (.*)" "`$1-`$2"`
