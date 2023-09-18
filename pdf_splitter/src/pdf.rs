@@ -1,10 +1,10 @@
-use std::{cell::RefCell, collections::HashMap, path::PathBuf, rc::Rc, sync::Arc};
+use std::{cell::RefCell, collections::HashMap, path::Path, rc::Rc, sync::Arc};
 
 use lopdf::{dictionary, Dictionary, Document, Object, ObjectId, Stream, StringFormat};
 
 use crate::{splitter::SplitterJob, PRODUCER};
 
-pub fn split(job: SplitterJob, old_doc: Arc<Document>, out_dir: &PathBuf) {
+pub fn split(job: SplitterJob, old_doc: Arc<Document>, out_dir: &Path) {
     let object_cache = Rc::new(RefCell::new(HashMap::new()));
     let mut doc = Document::new();
     let pages_id = doc.new_object_id();

@@ -39,7 +39,11 @@ impl Section {
     }
 }
 
-pub fn jobs(doc: Arc<Document>, splitter: &dyn Splitter) -> anyhow::Result<Vec<SplitterJob>> {
+pub fn jobs(
+    doc: Arc<Document>,
+    splitter: &dyn Splitter,
+    depth: usize,
+) -> anyhow::Result<Vec<SplitterJob>> {
     let total_pages = doc.page_iter().count();
     let mut jobs: Vec<SplitterJob> = Vec::new();
 
@@ -54,7 +58,8 @@ pub fn jobs(doc: Arc<Document>, splitter: &dyn Splitter) -> anyhow::Result<Vec<S
         get_outlines(&mut outlines, &i, 0);
     }
 
-    for i in outlines.iter().filter(|x| x.1 == 1) {
+    // TODO: Split depth into splitter?
+    for i in outlines.iter().filter(|x| x.1 == depth) {
         let title = i.0.title().unwrap().as_string().unwrap();
         let reference = i.0.page().unwrap().as_reference().unwrap();
         let page = doc
