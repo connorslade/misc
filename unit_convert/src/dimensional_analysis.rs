@@ -7,39 +7,21 @@ use crate::{
 
 struct Measurement {
     value: f64,
-    // unit: Unit,
+    unit: Vec<Token>,
 }
 
-// struct Unit {
-//     tree: Tree,
-// }
-
-/*
-m/s^2
-(m/s)/s
-
-        UNIT
-          |
-         DIV
-         /\
-        s  s
-        |
-       DIV
-       /\
-      m  s
-*/
-
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum Token {
+pub enum Token {
     Unit(String), // Box<dyn Conversion>
     Div,
     Mul,
-    Group(Vec<Token>),
+    OpenParen,
+    CloseParen,
     Tree(Op, Box<Token>, Box<Token>),
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-enum Op {
+pub enum Op {
     #[default]
     Nop,
     Mul,
@@ -66,20 +48,17 @@ impl Op {
     }
 }
 
-mod tree {
+mod rpn {
     use super::{Op, Token};
 
-    struct Treeifier {
+    struct Rpn {
         idx: usize,
         tokens: Vec<Token>,
         output: Vec<Token>,
         stack: Vec<Op>,
     }
 
-    // First convert into RPN
-    // Then convert into tree
-
-    impl Treeifier {
+    impl Rpn {
         fn new(tokens: Vec<Token>) -> Self {
             Self {
                 idx: 0,
@@ -98,37 +77,14 @@ mod tree {
                     Token::Div => self.handle_op(Op::Div),
                     Token::Mul => self.handle_op(Op::Mul),
                     Token::Unit(_) => self.output.push(i.clone()),
-                    Token::Group(_) => todo!(),
+                    Token::OpenParen => todo!(),
+                    Token::CloseParen => todo!(),
                     Token::Tree(_, _, _) => unreachable!(),
                 }
             }
 
             while let Some(op) = self.stack.pop() {
                 self.output.push(op.into());
-            }
-        }
-
-        fn tree(&mut self) {
-            if self.output.len() == 1 {
-                return;
-            }
-
-            self.idx = 0;
-            while self.output.len() > 1 {
-                let i = &self.output[self.idx];
-                self.idx += 1;
-
-                match i {
-                    Token::Div => self.handle_tree(Op::Div),
-                    Token::Mul => self.handle_tree(Op::Mul),
-                    Token::Unit(_) => {},
-                    _ => unreachable!(),
-                }
-
-                let left = self.output.remove(0);
-                let right = self.output.remove(0);
-                self.output
-                    .push(Token::Tree(Op::Nop, Box::new(left), Box::new(right)));
             }
         }
 
@@ -148,21 +104,15 @@ mod tree {
             }
             self.stack.push(op.clone());
         }
-
-        fn handle_tree(&mut self, op: Op) {
-            if let Token::Tree(this_op, ..) = self.output.first_mut().unwrap() {
-                this_op = op;
-            }
-        }
     }
 
     #[cfg(test)]
     mod test {
-        use super::Treeifier;
+        use super::Rpn;
         use crate::dimensional_analysis::Token;
 
         #[test]
-        fn test_treeify() {
+        fn test_rpn() {
             let tokens = vec![
                 Token::Unit("m".to_string()),
                 Token::Div,
@@ -171,7 +121,7 @@ mod tree {
                 Token::Unit("s".to_string()),
             ];
 
-            let mut tree = Treeifier::new(tokens);
+            let mut tree = Rpn::new(tokens);
             tree.rpn();
 
             assert_eq!(
@@ -185,22 +135,48 @@ mod tree {
                 ]
             );
         }
+
+        fn test_rpn_2() {
+            let tokens = vec![
+                Token::Unit("m".to_string()),
+                Token::Div,
+                Token::OpenParen,
+                Token::Unit("s".to_string()),
+                Token::Mul,
+                Token::Unit("s".to_string()),
+                Token::CloseParen,
+            ];
+
+            let mut tree = Rpn::new(tokens);
+            tree.rpn();
+
+            assert_eq!(
+                tree.output,
+                vec![
+                    Token::Unit("m".to_string()),
+                    Token::Unit("s".to_string()),
+                    Token::Unit("s".to_string()),
+                    Token::Mul,
+                    Token::Div,
+                ]
+            );
+        }
     }
 }
 
 mod tokenizer {
     use super::Token;
 
-    struct Tokenizer {
+    pub struct Tokenizer {
         chars: Vec<char>,
         index: usize,
 
-        tokens: Vec<Token>,
+        pub tokens: Vec<Token>,
         buffer: String,
     }
 
     impl Tokenizer {
-        fn new(input: &str) -> Self {
+        pub fn new(input: &str) -> Self {
             Self {
                 chars: input.chars().collect(),
                 index: 0,
@@ -210,25 +186,27 @@ mod tokenizer {
             }
         }
 
-        fn tokenize(&mut self) {
+        pub fn tokenize(&mut self) {
             while self.index < self.chars.len() {
                 let chr = self.chars[self.index];
                 self.index += 1;
                 match chr {
                     '/' => self.add_token(Token::Div),
                     '*' => self.add_token(Token::Mul),
+                    '(' => self.add_token(Token::OpenParen),
+                    ')' => self.add_token(Token::CloseParen),
                     '^' => {
                         self.flush_buffer();
                         let exp = self.take_int();
                         let rep = self.tokens.pop().unwrap();
 
-                        let mut group = Vec::with_capacity(exp as usize * 2);
+                        self.tokens.push(Token::OpenParen);
                         for _ in 1..exp {
-                            group.push(rep.clone());
-                            group.push(Token::Mul);
+                            self.tokens.push(rep.clone());
+                            self.tokens.push(Token::Mul);
                         }
-                        group.push(rep);
-                        self.tokens.push(Token::Group(group));
+                        self.tokens.push(rep.clone());
+                        self.tokens.push(Token::CloseParen);
                     }
                     _ => {
                         self.buffer.push(chr);
@@ -280,5 +258,51 @@ mod tokenizer {
             tokens.tokenize();
             println!("{:?}", tokens.tokens);
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::dimensional_analysis::tokenizer::Tokenizer;
+
+    use super::Token;
+
+    #[test]
+    fn test_dimensional_analysis() {
+        let from = {
+            let mut tokens = Tokenizer::new("m/h");
+            tokens.tokenize();
+            tokens.tokens
+        };
+
+        let to = {
+            let mut tokens = Tokenizer::new("m/s");
+            tokens.tokenize();
+            tokens.tokens
+        };
+
+        let mut val = 1.0;
+        for (a, b) in from.iter().zip(to.iter()) {
+            match (a, b) {
+                (Token::Unit(a), Token::Unit(b)) => {
+                    println!("{} => {}", a, b);
+                    let base = match a.as_str() {
+                        "m" => val,
+                        "s" => val,
+                        "h" => val * 3600.0,
+                        _ => panic!("Unknown unit"),
+                    };
+                    val = match b.as_str() {
+                        "m" => base,
+                        "s" => base,
+                        "h" => base / 3600.0,
+                        _ => panic!("Unknown unit"),
+                    };
+                }
+                _ => {}
+            }
+        }
+
+        println!("{}", val);
     }
 }
