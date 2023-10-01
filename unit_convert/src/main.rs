@@ -1,6 +1,9 @@
+mod dimensional_analysis;
 mod units;
 
 use dialoguer::{theme::ColorfulTheme, FuzzySelect};
+
+type Num = f64;
 
 fn main() {
     let unit_space_index = FuzzySelect::with_theme(&ColorfulTheme::default())
@@ -36,4 +39,5 @@ fn main() {
     let result = to_unit.from_base(&base);
 
     println!("{} {} => {} {}", value, from_unit, result, to_unit);
+    println!("== RESPECT THE SMART CART ==")
 }

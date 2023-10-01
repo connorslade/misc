@@ -1,10 +1,8 @@
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 
-type Num = f64;
+use crate::{impl_conversion, impl_unit_space, Num};
 
-use crate::{impl_conversion, impl_unit_space};
-
-mod duration;
+pub mod duration;
 
 pub const UNIT_SPACES: &[&dyn UnitSpace] = &[&duration::Duration];
 
@@ -66,5 +64,11 @@ impl Display for dyn UnitSpace {
 impl Display for dyn Conversion {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}s", self.name())
+    }
+}
+
+impl Debug for dyn Conversion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.name())
     }
 }
