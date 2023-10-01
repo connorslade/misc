@@ -39,4 +39,8 @@ pub struct Args {
     /// The name of the last section.
     #[clap(long, short, default_value = "End")]
     pub end_name: String,
+    /// The depth of heading to search through.
+    /// Setting to -1 will include all headings.
+    #[clap(long, default_value_t = {0})]
+    pub depth: usize
 }

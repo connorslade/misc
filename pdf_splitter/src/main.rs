@@ -23,7 +23,7 @@ fn main() -> anyhow::Result<()> {
     );
     let doc = Arc::new(Document::load(&args.input_file).context("Loading Document")?);
     let splitter = ArgSplitter { args: args.clone() };
-    let jobs = jobs(doc.clone(), &splitter)?;
+    let jobs = jobs(doc.clone(), &splitter, args.depth)?;
 
     if args.dry_run {
         println!("[*] Dry run, not saving files");
