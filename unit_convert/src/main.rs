@@ -6,10 +6,10 @@ fn main() {
     let unit_space_index = FuzzySelect::with_theme(&ColorfulTheme::default())
         .with_prompt("Unit Space")
         .default(0)
-        .items(units::UNIT_TYPES)
+        .items(units::UNIT_SPACES)
         .interact()
         .unwrap();
-    let unit_space = units::UNIT_CONVERSIONS[unit_space_index];
+    let unit_space = units::UNIT_SPACES[unit_space_index].units();
 
     let from_unit_index = FuzzySelect::with_theme(&ColorfulTheme::default())
         .with_prompt("From")
@@ -35,5 +35,5 @@ fn main() {
     let base = from_unit.to_base(&value);
     let result = to_unit.from_base(&base);
 
-    println!("{} {} = {} {}", value, from_unit, result, to_unit);
+    println!("{} {} => {} {}", value, from_unit, result, to_unit);
 }
