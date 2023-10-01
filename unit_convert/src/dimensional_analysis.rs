@@ -261,48 +261,8 @@ mod tokenizer {
     }
 }
 
-#[cfg(test)]
-mod test {
-    use crate::dimensional_analysis::tokenizer::Tokenizer;
-
-    use super::Token;
-
-    #[test]
-    fn test_dimensional_analysis() {
-        let from = {
-            let mut tokens = Tokenizer::new("m/h");
-            tokens.tokenize();
-            tokens.tokens
-        };
-
-        let to = {
-            let mut tokens = Tokenizer::new("m/s");
-            tokens.tokenize();
-            tokens.tokens
-        };
-
-        let mut val = 1.0;
-        for (a, b) in from.iter().zip(to.iter()) {
-            match (a, b) {
-                (Token::Unit(a), Token::Unit(b)) => {
-                    println!("{} => {}", a, b);
-                    let base = match a.as_str() {
-                        "m" => val,
-                        "s" => val,
-                        "h" => val * 3600.0,
-                        _ => panic!("Unknown unit"),
-                    };
-                    val = match b.as_str() {
-                        "m" => base,
-                        "s" => base,
-                        "h" => base / 3600.0,
-                        _ => panic!("Unknown unit"),
-                    };
-                }
-                _ => {}
-            }
-        }
-
-        println!("{}", val);
-    }
-}
+// == STEPS TO GET BASE UNIT DIMENSIONS ==
+// 1. Tokenize
+// 2. Tree
+// 3. Expand - div inverts sign while walking tree
+// 4. Simplify - combine like terms, adding exponents of like terms
