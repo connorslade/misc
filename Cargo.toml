@@ -11,6 +11,7 @@ members = [
     "spotify_stats",
     "study",
     "tgm_metadetector",
+    "unit_convert",
     "world_wide_west",
     "youtube_stats",
 ]
