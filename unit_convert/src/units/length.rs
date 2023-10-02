@@ -1,6 +1,11 @@
-use super::{impl_conversion, impl_unit_space, Conversion, Num, UnitSpace};
+use super::{impl_conversion, impl_unit_space, Conversion, Num, Space, UnitSpace};
 
-impl_unit_space!(Length, "length", &[&Meter, &Inch, &Foot, &Yard, &Mile]);
+impl_unit_space!(
+    Length,
+    "length",
+    Space::Length,
+    &[&Meter, &Inch, &Foot, &Yard, &Mile]
+);
 
 impl_conversion!(
     Meter,

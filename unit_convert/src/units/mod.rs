@@ -7,9 +7,17 @@ pub mod length;
 
 pub const UNIT_SPACES: &[&dyn UnitSpace] = &[&duration::Duration, &length::Length];
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Space {
+    Duration,
+    Length,
+}
+
 pub trait UnitSpace {
     /// Gets the name of the unit space.
     fn name(&self) -> &'static str;
+    /// Gets the Space enum of the unit space.
+    fn space(&self) -> Space;
     /// Gets all of the units in the space.
     fn units(&self) -> &'static [&'static dyn Conversion];
 
@@ -80,11 +88,15 @@ macro_rules! impl_conversion {
 
 #[macro_export]
 macro_rules! impl_unit_space {
-    ($struct:ident, $name:expr, $units:expr) => {
+    ($struct:ident, $name:expr, $space:expr, $units:expr) => {
         pub struct $struct;
         impl UnitSpace for $struct {
             fn name(&self) -> &'static str {
                 $name
+            }
+
+            fn space(&self) -> Space {
+                $space
             }
 
             fn units(&self) -> &'static [&'static dyn Conversion] {

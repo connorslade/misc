@@ -1,6 +1,11 @@
-use super::{impl_conversion, impl_unit_space, Conversion, Num, UnitSpace};
+use super::{impl_conversion, impl_unit_space, Conversion, Num, Space, UnitSpace};
 
-impl_unit_space!(Duration, "duration", &[&Second, &Minute, &Hour, &Sol]);
+impl_unit_space!(
+    Duration,
+    "duration",
+    Space::Duration,
+    &[&Second, &Minute, &Hour, &Sol]
+);
 
 impl_conversion!(
     Second,
