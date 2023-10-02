@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use crate::{
-    dimension::{tokenizer::Tokenizer, tree::Treeifyer},
+    dimension::{expander::Expander, tokenizer::Tokenizer, tree::Treeifyer},
     units::{Conversion, Space},
     Num,
 };
@@ -62,7 +62,12 @@ impl FromStr for Dimensions {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let tokens = Tokenizer::tokenize(s);
         let tree = Treeifyer::treeify(tokens);
-        todo!()
+        let dimensions = Expander::expand(tree);
+        // todo: simplify
+        Ok(Dimensions {
+            dimensions,
+            units: Vec::new(),
+        })
     }
 }
 
@@ -84,11 +89,107 @@ impl PartialEq for Dimensions {
 }
 
 mod expander {
-    use super::{Dimension, Token};
+    use crate::Num;
+
+    use super::{Dimension, Op, Token};
 
     pub struct Expander {
-        tree: Token,
         dimensions: Vec<Dimension>,
+        exponent: Num,
+    }
+
+    impl Expander {
+        pub fn expand(token: Token) -> Vec<Dimension> {
+            let mut exp = Self::new();
+            exp._expand(token);
+
+            exp.dimensions
+        }
+
+        fn new() -> Self {
+            Self {
+                dimensions: Vec::new(),
+                exponent: 1.0,
+            }
+        }
+
+        fn _expand(&mut self, token: Token) {
+            match token {
+                Token::Tree(op, left, right) => match op {
+                    Op::Pow => {
+                        let old_exponent = self.exponent;
+                        self.exponent *= match *right {
+                            Token::Num(num) => num,
+                            _ => panic!("Invalid exponent. (Expected number)"),
+                        };
+                        self._expand(*left);
+                        self.exponent = old_exponent;
+                    }
+                    Op::Div => {
+                        self._expand(*left);
+                        self.exponent *= -1.0;
+                        self._expand(*right);
+                    }
+                    _ => {
+                        self._expand(*left);
+                        self._expand(*right)
+                    }
+                },
+                Token::Unit(unit) => {
+                    self.dimensions.push(Dimension {
+                        unit_space: unit.space(),
+                        exponent: self.exponent,
+                    });
+                }
+                Token::Group(group) => {
+                    for i in group {
+                        self._expand(i);
+                    }
+                }
+                Token::Num(..) | Token::Op(..) => unreachable!(),
+            }
+        }
+    }
+
+    #[cfg(test)]
+    mod test {
+        use crate::{
+            dimension::{Dimension, Op, Token},
+            units::{duration::Second, length::Meter, Conversion},
+        };
+
+        use super::Expander;
+
+        #[test]
+        fn test_expander() {
+            let sec = &(&Second as &'static dyn Conversion);
+            let meter = &(&Meter as &'static dyn Conversion);
+
+            let inp = Token::Tree(
+                Op::Div,
+                Box::new(Token::Unit(meter)),
+                Box::new(Token::Tree(
+                    Op::Pow,
+                    Box::new(Token::Unit(sec)),
+                    Box::new(Token::Num(2.0)),
+                )),
+            );
+
+            let exp = Expander::expand(inp);
+            assert_eq!(
+                exp,
+                vec![
+                    Dimension {
+                        unit_space: meter.space(),
+                        exponent: 1.0,
+                    },
+                    Dimension {
+                        unit_space: sec.space(),
+                        exponent: -2.0,
+                    },
+                ]
+            );
+        }
     }
 }
 
@@ -108,8 +209,8 @@ mod tree {
                 let token = tokens.pop().unwrap();
                 match token {
                     Token::Group(tokens) => return Treeifyer::treeify(tokens),
-                    Token::Op(..) | Token::Tree(..) => panic!("Invalid token"),
-                    _ => return token,
+                    Token::Unit(..) => return token,
+                    Token::Op(..) | Token::Tree(..) | Token::Num(..) => panic!("Invalid token"),
                 }
             }
 
@@ -351,6 +452,26 @@ mod tokenizer {
                     Token::Group(vec![Token::Unit(sec), Token::Op(Op::Mul), Token::Unit(sec),]),
                 ]
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::str::FromStr;
+
+    use super::Dimensions;
+
+    #[test]
+    fn test_dimensions() {
+        let a = "m/s^2";
+        let b = "m/(s*s)";
+        let c = "m/s/s";
+
+        let a = Dimensions::from_str(a).unwrap();
+        for i in &[b, c] {
+            let i = Dimensions::from_str(i).unwrap();
+            assert_eq!(a, i);
         }
     }
 }

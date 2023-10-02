@@ -34,6 +34,8 @@ pub trait Conversion {
     /// Gets the name of the unit.
     /// Must be lowercase.
     fn name(&self) -> &'static str;
+    /// Gets the unit space of the unit.
+    fn space(&self) -> Space;
     /// Converts a value in this unit to the unit space's base unit.
     fn to_base(&self, this: &Num) -> Num;
     /// Converts a value in the unit space's base unit to this unit.
@@ -64,11 +66,15 @@ pub fn find_unit(s: &str) -> Option<&'static &'static dyn Conversion> {
 
 #[macro_export]
 macro_rules! impl_conversion {
-    ($struct:ident, $name:expr, $to_base:expr, $from_base:expr$(, aliases = [$($aliases:expr),*])?$(, metric = $metric:expr)?) => {
+    ($struct:ident, $name:expr, $space:ident, $to_base:expr, $from_base:expr$(, aliases = [$($aliases:expr),*])?$(, metric = $metric:expr)?) => {
         pub struct $struct;
         impl Conversion for $struct {
             fn name(&self) -> &'static str {
                 $name
+            }
+
+            fn space(&self) -> Space {
+                Space::$space
             }
 
             fn to_base(&self, this: &Num) -> Num {
@@ -95,7 +101,7 @@ macro_rules! impl_conversion {
 
 #[macro_export]
 macro_rules! impl_unit_space {
-    ($struct:ident, $name:expr, $space:expr, $units:expr) => {
+    ($struct:ident, $name:expr, $space:ident, $units:expr) => {
         pub struct $struct;
         impl UnitSpace for $struct {
             fn name(&self) -> &'static str {
@@ -103,7 +109,7 @@ macro_rules! impl_unit_space {
             }
 
             fn space(&self) -> Space {
-                $space
+                Space::$space
             }
 
             fn units(&self) -> &'static [&'static dyn Conversion] {
