@@ -111,3 +111,29 @@ impl Debug for dyn Conversion {
         f.write_str(self.name())
     }
 }
+
+#[cfg(test)]
+mod test {
+    use std::collections::HashSet;
+
+    #[test]
+    fn test_name_collisions() {
+        let mut sack = HashSet::new();
+        let mut collisions = HashSet::new();
+
+        for space in super::UNIT_SPACES {
+            for unit in space.units() {
+                let mut success = sack.insert(unit.name());
+                for alias in unit.aliases() {
+                    success &= sack.insert(alias);
+                }
+
+                if !success {
+                    collisions.insert(unit.name());
+                }
+            }
+        }
+
+        assert!(collisions.is_empty(), "name collisions: {:?}", collisions);
+    }
+}
