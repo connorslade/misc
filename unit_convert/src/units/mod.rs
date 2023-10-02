@@ -1,4 +1,7 @@
-use std::fmt::{Debug, Display};
+use std::{
+    any,
+    fmt::{Debug, Display},
+};
 
 use crate::{impl_conversion, impl_unit_space, Num};
 
@@ -53,6 +56,10 @@ pub trait Conversion {
         let name = name.to_ascii_lowercase();
         self.name() == name || self.aliases().contains(&name.as_str())
     }
+}
+
+pub fn find_unit(s: &str) -> Option<&'static &'static dyn Conversion> {
+    UNIT_SPACES.iter().find_map(|space| space.get(s))
 }
 
 #[macro_export]
@@ -124,9 +131,19 @@ impl Debug for dyn Conversion {
     }
 }
 
+impl PartialEq for dyn Conversion {
+    fn eq(&self, other: &Self) -> bool {
+        // ew
+        // todo: make this less bad
+        self.name() == other.name()
+    }
+}
+
 #[cfg(test)]
 mod test {
-    use std::collections::HashSet;
+    use std::{any::TypeId, collections::HashSet};
+
+    use crate::units::Conversion;
 
     #[test]
     fn test_name_collisions() {

@@ -8,9 +8,9 @@ use crate::Num;
 
 #[derive(Debug)]
 pub struct Input {
-    value: Num,
-    from_unit: String,
-    to_unit: String,
+    pub value: Num,
+    pub from_unit: String,
+    pub to_unit: String,
 }
 
 impl FromStr for Input {

@@ -1,4 +1,4 @@
-use crate::units::{Conversion, UNIT_SPACES};
+use crate::units::{find_unit, Conversion, UNIT_SPACES};
 
 #[rustfmt::skip]
 const METRIC_PREFIX: [Prefix; 24] = [
@@ -43,10 +43,6 @@ impl Prefix {
             power,
         }
     }
-}
-
-fn find_unit(s: &str) -> Option<&&dyn Conversion> {
-    UNIT_SPACES.iter().find_map(|space| space.get(s))
 }
 
 fn strip_prefix(s: &str) -> Option<(&str, &Prefix)> {

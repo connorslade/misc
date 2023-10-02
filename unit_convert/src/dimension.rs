@@ -1,10 +1,12 @@
 use std::str::FromStr;
 
 use crate::{
+    dimension::{tokenizer::Tokenizer, tree::Treeifyer},
     units::{Conversion, Space},
     Num,
 };
 
+#[derive(Debug)]
 pub struct Dimensions {
     /// Assumed to always be simplified, no two dimensions with the same space
     dimensions: Vec<Dimension>,
@@ -19,7 +21,7 @@ pub struct Dimension {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
-    Unit(String), // Box<dyn Conversion>
+    Unit(&'static &'static dyn Conversion), // Box<dyn Conversion>
     Num(Num),
     Op(Op),
     Group(Vec<Token>),
@@ -53,10 +55,13 @@ impl Op {
     }
 }
 
-impl FromStr for Dimension {
+impl FromStr for Dimensions {
     type Err = anyhow::Error;
 
+    // todo: parse units into dimensions
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let tokens = Tokenizer::tokenize(s);
+        let tree = Treeifyer::treeify(tokens);
         todo!()
     }
 }
@@ -75,6 +80,15 @@ impl PartialEq for Dimensions {
         }
 
         true
+    }
+}
+
+mod expander {
+    use super::{Dimension, Token};
+
+    pub struct Expander {
+        tree: Token,
+        dimensions: Vec<Dimension>,
     }
 }
 
@@ -161,13 +175,20 @@ mod tree {
     mod test {
         use super::super::{Op, Token};
         use super::Treeifyer;
+        use crate::units::{
+            duration::{Minute, Second},
+            Conversion,
+        };
 
         #[test]
         fn test_tree() {
+            let sec = &(&Second as &'static dyn Conversion);
+            let min = &(&Minute as &'static dyn Conversion);
+
             let tokens = vec![
-                Token::Unit("m".into()),
+                Token::Unit(min),
                 Token::Op(Op::Div),
-                Token::Unit("s".into()),
+                Token::Unit(sec),
                 Token::Op(Op::Pow),
                 Token::Num(2.0),
             ];
@@ -178,10 +199,10 @@ mod tree {
                 tree,
                 Token::Tree(
                     Op::Div,
-                    Box::new(Token::Unit("m".into())),
+                    Box::new(Token::Unit(min)),
                     Box::new(Token::Tree(
                         Op::Pow,
-                        Box::new(Token::Unit("s".into())),
+                        Box::new(Token::Unit(sec)),
                         Box::new(Token::Num(2.0)),
                     ))
                 )
@@ -191,7 +212,7 @@ mod tree {
 }
 
 mod tokenizer {
-    use crate::Num;
+    use crate::{units::find_unit, Num};
 
     use super::{Op, Token};
 
@@ -282,8 +303,10 @@ mod tokenizer {
 
             if let Ok(num) = self.buffer.parse::<Num>() {
                 self.tokens.push(Token::Num(num));
+            } else if let Some(conversion) = find_unit(&self.buffer) {
+                self.tokens.push(Token::Unit(conversion));
             } else {
-                self.tokens.push(Token::Unit(self.buffer.clone()));
+                panic!("Invalid token: {}", self.buffer);
             }
 
             self.buffer.clear();
@@ -292,17 +315,22 @@ mod tokenizer {
 
     #[cfg(test)]
     mod test {
+        use crate::units::{duration::Second, length::Meter, Conversion};
+
         use super::{Op, Token, Tokenizer};
 
         #[test]
         fn test_tokenize() {
+            let sec = &(&Second as &'static dyn Conversion);
+            let meter = &(&Meter as &'static dyn Conversion);
+
             let tokens = Tokenizer::tokenize("m/s^2");
             assert_eq!(
                 tokens,
                 vec![
-                    Token::Unit("m".into()),
+                    Token::Unit(meter),
                     Token::Op(Op::Div),
-                    Token::Unit("s".into()),
+                    Token::Unit(sec),
                     Token::Op(Op::Pow),
                     Token::Num(2.0),
                 ]
@@ -311,17 +339,16 @@ mod tokenizer {
 
         #[test]
         fn test_tokenize_2() {
+            let sec = &(&Second as &'static dyn Conversion);
+            let meter = &(&Meter as &'static dyn Conversion);
+
             let tokens = Tokenizer::tokenize("m / (s * s)");
             assert_eq!(
                 tokens,
                 vec![
-                    Token::Unit("m".into()),
+                    Token::Unit(meter),
                     Token::Op(Op::Div),
-                    Token::Group(vec![
-                        Token::Unit("s".into()),
-                        Token::Op(Op::Mul),
-                        Token::Unit("s".into()),
-                    ]),
+                    Token::Group(vec![Token::Unit(sec), Token::Op(Op::Mul), Token::Unit(sec),]),
                 ]
             );
         }
