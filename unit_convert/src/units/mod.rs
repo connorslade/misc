@@ -3,8 +3,9 @@ use std::fmt::{Debug, Display};
 use crate::{impl_conversion, impl_unit_space, Num};
 
 pub mod duration;
+pub mod length;
 
-pub const UNIT_SPACES: &[&dyn UnitSpace] = &[&duration::Duration];
+pub const UNIT_SPACES: &[&dyn UnitSpace] = &[&duration::Duration, &length::Length];
 
 pub trait UnitSpace {
     /// Gets the name of the unit space.
@@ -32,6 +33,11 @@ pub trait Conversion {
     fn aliases(&self) -> &'static [&'static str] {
         &[]
     }
+    /// Checks if the unit is a metric unit.
+    /// Metric units can use metric prefixes.
+    fn is_metric(&self) -> bool {
+        false
+    }
 
     /// Checks if the given name is the name or an alias of this unit.
     /// Case insensitive.
@@ -43,10 +49,7 @@ pub trait Conversion {
 
 #[macro_export]
 macro_rules! impl_conversion {
-    ($struct:ident, $name:expr, $to_base:expr, $from_base:expr) => {
-        $crate::impl_conversion!($struct, $name, $to_base, $from_base, []);
-    };
-    ($struct:ident, $name:expr, $to_base:expr, $from_base:expr, $aliases:expr) => {
+    ($struct:ident, $name:expr, $to_base:expr, $from_base:expr$(, aliases = [$($aliases:expr),*])?$(, metric = $metric:expr)?) => {
         pub struct $struct;
         impl Conversion for $struct {
             fn name(&self) -> &'static str {
@@ -64,7 +67,12 @@ macro_rules! impl_conversion {
             }
 
             fn aliases(&self) -> &'static [&'static str] {
-                &$aliases
+                &[$($($aliases),*)?]
+            }
+
+            fn is_metric(&self) -> bool {
+                false
+                $(;$metric)?
             }
         }
     };

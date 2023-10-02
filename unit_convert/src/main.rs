@@ -1,4 +1,5 @@
 mod dimensional_analysis;
+mod prefix;
 mod units;
 
 use dialoguer::{theme::ColorfulTheme, FuzzySelect};
@@ -41,3 +42,5 @@ fn main() {
     println!("{} {} => {} {}", value, from_unit, result, to_unit);
     println!("== RESPECT THE SMART CART ==")
 }
+
+// https://docs.github.com/en/get-started/using-git/splitting-a-subfolder-out-into-a-new-repository
