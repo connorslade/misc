@@ -21,7 +21,10 @@ pub struct Dimension {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
-    Unit(&'static &'static dyn Conversion), // Box<dyn Conversion>
+    Unit {
+        conversion: &'static &'static dyn Conversion,
+        power: i32,
+    },
     Num(Num),
     Op(Op),
     Group(Vec<Token>),
@@ -138,8 +141,8 @@ mod expander {
                         self._expand(*right, exponent);
                     }
                 },
-                Token::Unit(unit) => {
-                    self.add_dimension(unit.space(), exponent);
+                Token::Unit { conversion, .. } => {
+                    self.add_dimension(conversion.space(), exponent);
                 }
                 Token::Group(group) => {
                     for i in group {
@@ -174,10 +177,16 @@ mod expander {
 
             let inp = Token::Tree(
                 Op::Div,
-                Box::new(Token::Unit(meter)),
+                Box::new(Token::Unit {
+                    conversion: meter,
+                    power: 1,
+                }),
                 Box::new(Token::Tree(
                     Op::Pow,
-                    Box::new(Token::Unit(sec)),
+                    Box::new(Token::Unit {
+                        conversion: sec,
+                        power: 1,
+                    }),
                     Box::new(Token::Num(2.0)),
                 )),
             );
@@ -216,7 +225,7 @@ mod tree {
                 let token = tokens.pop().unwrap();
                 match token {
                     Token::Group(tokens) => return Treeifyer::treeify(tokens),
-                    Token::Unit(..) => return token,
+                    Token::Unit { .. } => return token,
                     Token::Op(..) | Token::Tree(..) | Token::Num(..) => panic!("Invalid token"),
                 }
             }
@@ -299,9 +308,15 @@ mod tree {
             let min = &(&Minute as &'static dyn Conversion);
 
             let tokens = vec![
-                Token::Unit(min),
+                Token::Unit {
+                    conversion: min,
+                    power: 1,
+                },
                 Token::Op(Op::Div),
-                Token::Unit(sec),
+                Token::Unit {
+                    conversion: sec,
+                    power: 1,
+                },
                 Token::Op(Op::Pow),
                 Token::Num(2.0),
             ];
@@ -312,10 +327,16 @@ mod tree {
                 tree,
                 Token::Tree(
                     Op::Div,
-                    Box::new(Token::Unit(min)),
+                    Box::new(Token::Unit {
+                        conversion: min,
+                        power: 1,
+                    },),
                     Box::new(Token::Tree(
                         Op::Pow,
-                        Box::new(Token::Unit(sec)),
+                        Box::new(Token::Unit {
+                            conversion: sec,
+                            power: 1,
+                        },),
                         Box::new(Token::Num(2.0)),
                     ))
                 )
@@ -325,7 +346,7 @@ mod tree {
 }
 
 mod tokenizer {
-    use crate::{units::find_unit, Num};
+    use crate::{prefix, units::find_unit, Num};
 
     use super::{Op, Token};
 
@@ -416,8 +437,11 @@ mod tokenizer {
 
             if let Ok(num) = self.buffer.parse::<Num>() {
                 self.tokens.push(Token::Num(num));
-            } else if let Some(conversion) = find_unit(&self.buffer) {
-                self.tokens.push(Token::Unit(conversion));
+            } else if let Some((conversion, power)) = prefix::get(&self.buffer) {
+                self.tokens.push(Token::Unit {
+                    conversion: conversion,
+                    power: power.map(|x| x.power).unwrap_or(1),
+                });
             } else {
                 panic!("Invalid token: {}", self.buffer);
             }
@@ -441,9 +465,15 @@ mod tokenizer {
             assert_eq!(
                 tokens,
                 vec![
-                    Token::Unit(meter),
+                    Token::Unit {
+                        conversion: meter,
+                        power: 1,
+                    },
                     Token::Op(Op::Div),
-                    Token::Unit(sec),
+                    Token::Unit {
+                        conversion: sec,
+                        power: 0,
+                    },
                     Token::Op(Op::Pow),
                     Token::Num(2.0),
                 ]
@@ -459,9 +489,22 @@ mod tokenizer {
             assert_eq!(
                 tokens,
                 vec![
-                    Token::Unit(meter),
+                    Token::Unit {
+                        conversion: meter,
+                        power: 1,
+                    },
                     Token::Op(Op::Div),
-                    Token::Group(vec![Token::Unit(sec), Token::Op(Op::Mul), Token::Unit(sec),]),
+                    Token::Group(vec![
+                        Token::Unit {
+                            conversion: sec,
+                            power: 1,
+                        },
+                        Token::Op(Op::Mul),
+                        Token::Unit {
+                            conversion: sec,
+                            power: 1,
+                        }
+                    ]),
                 ]
             );
         }

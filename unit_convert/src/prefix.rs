@@ -57,7 +57,7 @@ fn strip_prefix(s: &str) -> Option<(&str, &Prefix)> {
     None
 }
 
-fn get(s: &str) -> Option<(&&dyn Conversion, Option<&Prefix>)> {
+pub fn get(s: &str) -> Option<(&'static &'static dyn Conversion, Option<&Prefix>)> {
     if let Some(i) = find_unit(s) {
         return Some((i, None));
     }
