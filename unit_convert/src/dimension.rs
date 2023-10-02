@@ -10,7 +10,7 @@ use crate::{
 pub struct Dimensions {
     /// Assumed to always be simplified, no two dimensions with the same space
     dimensions: Vec<Dimension>,
-    units: Vec<&'static dyn Conversion>,
+    // units: Vec<&'static dyn Conversion>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -64,10 +64,7 @@ impl FromStr for Dimensions {
         let tree = Treeifyer::treeify(tokens);
         let dimensions = Expander::expand(tree);
         // todo: simplify
-        Ok(Dimensions {
-            dimensions,
-            units: Vec::new(),
-        })
+        Ok(Dimensions { dimensions })
     }
 }
 
@@ -89,65 +86,75 @@ impl PartialEq for Dimensions {
 }
 
 mod expander {
-    use crate::Num;
+    use std::collections::HashMap;
+
+    use crate::{units::Space, Num};
 
     use super::{Dimension, Op, Token};
 
     pub struct Expander {
-        dimensions: Vec<Dimension>,
-        exponent: Num,
+        dimensions: HashMap<Space, Num>,
     }
 
     impl Expander {
         pub fn expand(token: Token) -> Vec<Dimension> {
             let mut exp = Self::new();
-            exp._expand(token);
+            exp._expand(token, 1.0);
 
             exp.dimensions
+                .into_iter()
+                .map(|(unit_space, exponent)| Dimension {
+                    unit_space,
+                    exponent,
+                })
+                .collect()
         }
 
         fn new() -> Self {
             Self {
-                dimensions: Vec::new(),
-                exponent: 1.0,
+                dimensions: HashMap::new(),
             }
         }
 
-        fn _expand(&mut self, token: Token) {
+        fn _expand(&mut self, token: Token, exponent: Num) {
             match token {
                 Token::Tree(op, left, right) => match op {
                     Op::Pow => {
-                        let old_exponent = self.exponent;
-                        self.exponent *= match *right {
-                            Token::Num(num) => num,
-                            _ => panic!("Invalid exponent. (Expected number)"),
-                        };
-                        self._expand(*left);
-                        self.exponent = old_exponent;
+                        self._expand(
+                            *left,
+                            exponent
+                                * match *right {
+                                    Token::Num(num) => num,
+                                    _ => panic!("Invalid exponent. (Expected number)"),
+                                },
+                        );
                     }
                     Op::Div => {
-                        self._expand(*left);
-                        self.exponent *= -1.0;
-                        self._expand(*right);
+                        self._expand(*left, exponent);
+                        self._expand(*right, -exponent);
                     }
                     _ => {
-                        self._expand(*left);
-                        self._expand(*right)
+                        self._expand(*left, exponent);
+                        self._expand(*right, exponent);
                     }
                 },
                 Token::Unit(unit) => {
-                    self.dimensions.push(Dimension {
-                        unit_space: unit.space(),
-                        exponent: self.exponent,
-                    });
+                    self.add_dimension(unit.space(), exponent);
                 }
                 Token::Group(group) => {
                     for i in group {
-                        self._expand(i);
+                        self._expand(i, exponent);
                     }
                 }
                 Token::Num(..) | Token::Op(..) => unreachable!(),
             }
+        }
+
+        fn add_dimension(&mut self, space: Space, exp: Num) {
+            self.dimensions
+                .entry(space)
+                .and_modify(|x| *x += exp)
+                .or_insert(exp);
         }
     }
 
@@ -251,8 +258,13 @@ mod tree {
                         continue;
                     }
 
-                    let left = self.tokens.remove(i - 1);
-                    let right = self.tokens.remove(i);
+                    let make_tree = |x| match x {
+                        Token::Group(tokens) => Treeifyer::treeify(tokens),
+                        _ => x,
+                    };
+
+                    let left = make_tree(self.tokens.remove(i - 1));
+                    let right = make_tree(self.tokens.remove(i));
 
                     self.tokens[i - 1] = Token::Tree(op.clone(), Box::new(left), Box::new(right));
                     self.precedence
@@ -470,8 +482,8 @@ mod test {
 
         let a = Dimensions::from_str(a).unwrap();
         for i in &[b, c] {
-            let i = Dimensions::from_str(i).unwrap();
-            assert_eq!(a, i);
+            let j = Dimensions::from_str(i).unwrap();
+            assert_eq!(a, j, "Failed on: `{i}`");
         }
     }
 }

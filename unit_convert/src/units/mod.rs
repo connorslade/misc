@@ -10,7 +10,7 @@ pub mod length;
 
 pub const UNIT_SPACES: &[&dyn UnitSpace] = &[&duration::Duration, &length::Length];
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum Space {
     Duration,
     Length,
