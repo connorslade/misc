@@ -7,19 +7,46 @@ pub mod duration;
 pub const UNIT_SPACES: &[&dyn UnitSpace] = &[&duration::Duration];
 
 pub trait UnitSpace {
+    /// Gets the name of the unit space.
     fn name(&self) -> &'static str;
+    /// Gets all of the units in the space.
     fn units(&self) -> &'static [&'static dyn Conversion];
+
+    /// Gets the unit with the given name.
+    fn get(&self, name: &str) -> Option<&&dyn Conversion> {
+        self.units().iter().find(|u| u.is_alias(name))
+    }
 }
 
 pub trait Conversion {
+    /// Gets the name of the unit.
+    /// Must be lowercase.
     fn name(&self) -> &'static str;
+    /// Converts a value in this unit to the unit space's base unit.
     fn to_base(&self, this: &Num) -> Num;
+    /// Converts a value in the unit space's base unit to this unit.
     fn from_base(&self, s: &Num) -> Num;
+
+    /// Gets the aliases of the unit.
+    /// All aliases must be lowercase.
+    fn aliases(&self) -> &'static [&'static str] {
+        &[]
+    }
+
+    /// Checks if the given name is the name or an alias of this unit.
+    /// Case insensitive.
+    fn is_alias(&self, name: &str) -> bool {
+        let name = name.to_ascii_lowercase();
+        self.name() == name || self.aliases().contains(&name.as_str())
+    }
 }
 
 #[macro_export]
 macro_rules! impl_conversion {
     ($struct:ident, $name:expr, $to_base:expr, $from_base:expr) => {
+        $crate::impl_conversion!($struct, $name, $to_base, $from_base, []);
+    };
+    ($struct:ident, $name:expr, $to_base:expr, $from_base:expr, $aliases:expr) => {
         pub struct $struct;
         impl Conversion for $struct {
             fn name(&self) -> &'static str {
@@ -34,6 +61,10 @@ macro_rules! impl_conversion {
             fn from_base(&self, s: &Num) -> Num {
                 let exe: fn(&Num) -> Num = $from_base;
                 exe(s)
+            }
+
+            fn aliases(&self) -> &'static [&'static str] {
+                &$aliases
             }
         }
     };
