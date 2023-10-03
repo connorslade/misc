@@ -16,13 +16,13 @@ pub struct Dimensions {
 }
 
 #[derive(Debug)]
-struct Unit {
+pub struct Unit {
     conversion: &'static dyn Conversion,
     power: i32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum Token {
+pub enum Token {
     Unit {
         conversion: &'static dyn Conversion,
         power: i32,
@@ -34,7 +34,7 @@ enum Token {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-enum Op {
+pub enum Op {
     #[default]
     Mul,
     Div,
@@ -135,7 +135,7 @@ impl PartialEq for Dimensions {
     }
 }
 
-mod expander {
+pub mod expander {
     use hashbrown::HashMap;
 
     use anyhow::{bail, Result};
@@ -149,7 +149,7 @@ mod expander {
     }
 
     impl Expander {
-        pub(super) fn expand(token: Token) -> Result<(HashMap<Space, f64>, Vec<Unit>)> {
+        pub fn expand(token: Token) -> Result<(HashMap<Space, f64>, Vec<Unit>)> {
             let mut exp = Self::new();
             exp._expand(token, 1.0)?;
 
@@ -248,7 +248,7 @@ mod expander {
     }
 }
 
-mod tree {
+pub mod tree {
     use hashbrown::HashMap;
 
     use super::Token;
@@ -259,7 +259,7 @@ mod tree {
     }
 
     impl Treeifyer {
-        pub(super) fn treeify(mut tokens: Vec<Token>) -> Token {
+        pub fn treeify(mut tokens: Vec<Token>) -> Token {
             if tokens.len() == 1 {
                 let token = tokens.pop().unwrap();
                 match token {
@@ -386,7 +386,7 @@ mod tree {
     }
 }
 
-mod tokenizer {
+pub mod tokenizer {
     use anyhow::{bail, Result};
 
     use super::{Op, Token};
@@ -402,7 +402,7 @@ mod tokenizer {
     }
 
     impl Tokenizer {
-        pub(super) fn tokenize(raw: &str) -> Result<Vec<Token>> {
+        pub fn tokenize(raw: &str) -> Result<Vec<Token>> {
             let mut ctx = Self::new(raw);
 
             while ctx.index < ctx.chars.len() {

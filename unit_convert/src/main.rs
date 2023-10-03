@@ -2,13 +2,7 @@ use std::{env, str::FromStr};
 
 use anyhow::Result;
 
-mod dimension;
-mod input;
-mod prefix;
-mod units;
-use dimension::Dimensions;
-
-type Num = f64;
+use unit_convert::{dimension::Dimensions, input};
 
 fn main() -> Result<()> {
     let inp = env::args().skip(1).collect::<String>();
