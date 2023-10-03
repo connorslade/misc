@@ -1,5 +1,7 @@
 use std::{collections::HashMap, str::FromStr};
 
+use anyhow::Result;
+
 use crate::{
     dimension::{expander::Expander, tokenizer::Tokenizer, tree::Treeifyer},
     units::{Conversion, Space},
@@ -8,7 +10,6 @@ use crate::{
 
 #[derive(Debug)]
 pub struct Dimensions {
-    /// Assumed to always be simplified, no two dimensions with the same space
     dimensions: HashMap<Space, Num>,
     units: Vec<Unit>,
 }
@@ -40,7 +41,7 @@ enum Op {
 }
 
 impl Dimensions {
-    pub fn convert(mut self, mut other: Dimensions, mut value: Num) -> Num {
+    pub fn convert(mut self, mut other: Dimensions, mut value: Num) -> Result<Num> {
         let is_inverse = |dim: &Dimensions, conv: &dyn Conversion| {
             dim.dimensions.get(&conv.space()).unwrap().signum() < 0.0
         };
@@ -83,7 +84,7 @@ impl Dimensions {
         //     }
         // }
 
-        value
+        Ok(value)
     }
 
     fn get_space(&self, space: Space) -> Option<Num> {
@@ -108,9 +109,9 @@ impl FromStr for Dimensions {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let tokens = Tokenizer::tokenize(s);
+        let tokens = Tokenizer::tokenize(s)?;
         let tree = Treeifyer::treeify(tokens);
-        let (dimensions, units) = Expander::expand(tree);
+        let (dimensions, units) = Expander::expand(tree)?;
 
         Ok(Dimensions { dimensions, units })
     }
@@ -136,9 +137,10 @@ impl PartialEq for Dimensions {
 mod expander {
     use std::collections::HashMap;
 
-    use crate::{units::Space, Num};
+    use anyhow::{bail, Result};
 
     use super::{Op, Token, Unit};
+    use crate::{units::Space, Num};
 
     pub struct Expander {
         dimensions: HashMap<Space, Num>,
@@ -146,11 +148,11 @@ mod expander {
     }
 
     impl Expander {
-        pub(super) fn expand(token: Token) -> (HashMap<Space, f64>, Vec<Unit>) {
+        pub(super) fn expand(token: Token) -> Result<(HashMap<Space, f64>, Vec<Unit>)> {
             let mut exp = Self::new();
-            exp._expand(token, 1.0);
+            exp._expand(token, 1.0)?;
 
-            (exp.dimensions, exp.units)
+            Ok((exp.dimensions, exp.units))
         }
 
         fn new() -> Self {
@@ -160,7 +162,7 @@ mod expander {
             }
         }
 
-        fn _expand(&mut self, token: Token, exponent: Num) {
+        fn _expand(&mut self, token: Token, exponent: Num) -> Result<()> {
             match token {
                 Token::Tree(op, left, right) => match op {
                     Op::Pow => {
@@ -169,17 +171,17 @@ mod expander {
                             exponent
                                 * match *right {
                                     Token::Num(num) => num,
-                                    _ => panic!("Invalid exponent. (Expected number)"),
+                                    _ => bail!("Invalid exponent. (Expected number)"),
                                 },
-                        );
+                        )?;
                     }
                     Op::Div => {
-                        self._expand(*left, exponent);
-                        self._expand(*right, -exponent);
+                        self._expand(*left, exponent)?;
+                        self._expand(*right, -exponent)?;
                     }
                     _ => {
-                        self._expand(*left, exponent);
-                        self._expand(*right, exponent);
+                        self._expand(*left, exponent)?;
+                        self._expand(*right, exponent)?;
                     }
                 },
                 Token::Unit { conversion, power } => {
@@ -191,11 +193,12 @@ mod expander {
                 }
                 Token::Group(group) => {
                     for i in group {
-                        self._expand(i, exponent);
+                        self._expand(i, exponent)?;
                     }
                 }
                 Token::Num(..) | Token::Op(..) => unreachable!(),
             }
+            Ok(())
         }
 
         fn add_dimension(&mut self, space: Space, exp: Num) {
@@ -236,7 +239,7 @@ mod expander {
                 )),
             );
 
-            let (exp, _) = Expander::expand(inp);
+            let (exp, _) = Expander::expand(inp).unwrap();
             assert_eq!(exp.len(), 2);
             assert_eq!(exp.get(&meter.space()), Some(&1.0));
             assert_eq!(exp.get(&sec.space()), Some(&-2.0));
@@ -261,7 +264,9 @@ mod tree {
                 match token {
                     Token::Group(tokens) => return Treeifyer::treeify(tokens),
                     Token::Unit { .. } => return token,
-                    Token::Op(..) | Token::Tree(..) | Token::Num(..) => panic!("Invalid token"),
+                    Token::Op(..) | Token::Tree(..) | Token::Num(..) => {
+                        unreachable!("Invalid token")
+                    }
                 }
             }
 
@@ -381,9 +386,10 @@ mod tree {
 }
 
 mod tokenizer {
-    use crate::{prefix, Num};
+    use anyhow::{bail, Result};
 
     use super::{Op, Token};
+    use crate::{prefix, Num};
 
     pub struct Tokenizer {
         chars: Box<[char]>,
@@ -395,7 +401,7 @@ mod tokenizer {
     }
 
     impl Tokenizer {
-        pub(super) fn tokenize(raw: &str) -> Vec<Token> {
+        pub(super) fn tokenize(raw: &str) -> Result<Vec<Token>> {
             let mut ctx = Self::new(raw);
 
             while ctx.index < ctx.chars.len() {
@@ -409,7 +415,7 @@ mod tokenizer {
                             ctx.depth -= 1;
                             if ctx.depth == 0 {
                                 ctx.tokens
-                                    .push(Token::Group(Tokenizer::tokenize(&ctx.buffer)));
+                                    .push(Token::Group(Tokenizer::tokenize(&ctx.buffer)?));
                                 ctx.buffer.clear();
                             }
                         }
@@ -420,17 +426,17 @@ mod tokenizer {
 
                 match chr {
                     x if x.is_whitespace() => continue,
-                    '/' => ctx.add_token(Op::Div),
-                    '*' => ctx.add_token(Op::Mul),
-                    '^' => ctx.add_token(Op::Pow),
+                    '/' => ctx.add_token(Op::Div)?,
+                    '*' => ctx.add_token(Op::Mul)?,
+                    '^' => ctx.add_token(Op::Pow)?,
                     '(' => ctx.depth += 1,
-                    ')' => panic!("Unmatched closing parenthesis"),
+                    ')' => bail!("Unmatched closing parenthesis"),
                     _ => ctx.buffer.push(chr),
                 }
             }
 
-            ctx.flush_buffer();
-            ctx.tokens
+            ctx.flush_buffer()?;
+            Ok(ctx.tokens)
         }
 
         fn new(input: &str) -> Self {
@@ -444,14 +450,15 @@ mod tokenizer {
             }
         }
 
-        fn add_token(&mut self, op: Op) {
-            self.flush_buffer();
+        fn add_token(&mut self, op: Op) -> Result<()> {
+            self.flush_buffer()?;
             self.tokens.push(Token::Op(op));
+            Ok(())
         }
 
-        fn flush_buffer(&mut self) {
+        fn flush_buffer(&mut self) -> Result<()> {
             if self.buffer.is_empty() {
-                return;
+                return Ok(());
             }
 
             if let Ok(num) = self.buffer.parse::<Num>() {
@@ -462,10 +469,11 @@ mod tokenizer {
                     power: power.map(|x| x.power).unwrap_or(1),
                 });
             } else {
-                panic!("Invalid token: {}", self.buffer);
+                bail!("Invalid token: {}", self.buffer);
             }
 
             self.buffer.clear();
+            Ok(())
         }
     }
 
@@ -480,7 +488,7 @@ mod tokenizer {
             let sec = &Second as &'static dyn Conversion;
             let meter = &Meter as &'static dyn Conversion;
 
-            let tokens = Tokenizer::tokenize("m/s^2");
+            let tokens = Tokenizer::tokenize("m/s^2").unwrap();
             assert_eq!(
                 tokens,
                 vec![
@@ -491,7 +499,7 @@ mod tokenizer {
                     Token::Op(Op::Div),
                     Token::Unit {
                         conversion: sec,
-                        power: 0,
+                        power: 1,
                     },
                     Token::Op(Op::Pow),
                     Token::Num(2.0),
@@ -504,7 +512,7 @@ mod tokenizer {
             let sec = &Second as &'static dyn Conversion;
             let meter = &Meter as &'static dyn Conversion;
 
-            let tokens = Tokenizer::tokenize("m / (s * s)");
+            let tokens = Tokenizer::tokenize("m / (s * s)").unwrap();
             assert_eq!(
                 tokens,
                 vec![

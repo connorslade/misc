@@ -1,10 +1,12 @@
 use std::{result, str::FromStr};
 
 use anyhow::{Context, Result};
+use once_cell::sync::Lazy;
+use regex::Regex;
 
 use crate::Num;
 
-// const CONVERT_SEP: [&str; 3] = ["=>", "->", "to"];
+static SEPARATOR: Lazy<Regex> = Lazy::new(|| Regex::new(r"=>|->|to").unwrap());
 
 #[derive(Debug)]
 pub struct Input {
@@ -17,7 +19,12 @@ impl FromStr for Input {
     type Err = anyhow::Error;
 
     fn from_str(inp: &str) -> result::Result<Self, Self::Err> {
-        let (from, to) = inp.split_once("=>").context("No => separator found.")?;
+        let mut parts = SEPARATOR.split(inp);
+        let (from, to) = (
+            parts.next().unwrap(),
+            parts.next().context("No separator found.")?,
+        );
+
         let (num, from) = pull_number(from.trim())?;
 
         Ok(Input {

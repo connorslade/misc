@@ -145,9 +145,7 @@ impl PartialEq for dyn Conversion {
 
 #[cfg(test)]
 mod test {
-    use std::{any::TypeId, collections::HashSet};
-
-    use crate::units::Conversion;
+    use std::collections::HashSet;
 
     #[test]
     fn test_name_collisions() {
