@@ -88,6 +88,17 @@ impl Dimensions {
         Ok(value)
     }
 
+    pub fn as_base_units(&self) -> String {
+        let mut out = String::new();
+
+        for (space, exponent) in &self.dimensions {
+            out.push_str(&format!("[{space:?}]^{exponent} "));
+        }
+
+        out.pop();
+        out
+    }
+
     fn get_space(&self, space: Space) -> Option<Num> {
         self.dimensions
             .iter()
