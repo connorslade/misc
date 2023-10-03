@@ -1,6 +1,7 @@
-use std::{collections::HashMap, str::FromStr};
+use std::str::FromStr;
 
 use anyhow::Result;
+use hashbrown::HashMap;
 
 use crate::{
     dimension::{expander::Expander, tokenizer::Tokenizer, tree::Treeifyer},
@@ -135,7 +136,7 @@ impl PartialEq for Dimensions {
 }
 
 mod expander {
-    use std::collections::HashMap;
+    use hashbrown::HashMap;
 
     use anyhow::{bail, Result};
 
@@ -248,7 +249,7 @@ mod expander {
 }
 
 mod tree {
-    use std::collections::HashMap;
+    use hashbrown::HashMap;
 
     use super::Token;
 

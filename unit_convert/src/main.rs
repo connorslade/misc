@@ -19,6 +19,5 @@ fn main() -> Result<()> {
 
     let val = from_dim.convert(to_dim, inp.value)?;
     println!("{}{} => {}{}", inp.value, inp.from_unit, val, inp.to_unit);
-
     Ok(())
 }
