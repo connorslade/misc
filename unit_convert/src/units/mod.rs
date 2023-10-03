@@ -160,6 +160,8 @@ macro_rules! impl_units {
 mod test {
     use std::collections::HashSet;
 
+    use crate::prefix::METRIC_PREFIX;
+
     #[test]
     fn test_name_collisions() {
         let mut sack = HashSet::new();
@@ -169,8 +171,17 @@ mod test {
             for unit in space.units() {
                 println!("checking {}", unit.name());
                 let mut success = sack.insert(unit.name());
+
+                for i in METRIC_PREFIX {
+                    success |= unit.name().starts_with(i.name) || unit.name().starts_with(i.symbol);
+
+                    for j in unit.aliases() {
+                        success |= j.starts_with(i.name) || j.starts_with(i.symbol);
+                    }
+                }
+
                 for alias in unit.aliases() {
-                    success &= sack.insert(alias);
+                    success |= sack.insert(alias);
                 }
 
                 if !success {

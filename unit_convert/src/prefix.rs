@@ -1,7 +1,7 @@
 use crate::units::{find_unit, Conversion};
 
 #[rustfmt::skip]
-const METRIC_PREFIX: [Prefix; 24] = [
+pub const METRIC_PREFIX: [Prefix; 24] = [
     Prefix::new("quetta", "Q",  30),
     Prefix::new("ronna",  "R",  27),
     Prefix::new("yotta",  "Y",  24),
