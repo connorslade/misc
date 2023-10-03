@@ -10,7 +10,8 @@ use dimension::Dimensions;
 type Num = f64;
 
 fn main() {
-    let inp = "10m/s => mi/h";
+    // let inp = "10m/s => mi/h";
+    let inp = "22.3mi/h => m/s";
     let inp = dbg!(input::Input::from_str(inp)).unwrap();
 
     let from_dim = dbg!(Dimensions::from_str(&inp.from_unit)).unwrap();

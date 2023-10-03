@@ -41,36 +41,35 @@ enum Op {
 
 impl Dimensions {
     pub fn convert(mut self, mut other: Dimensions, mut value: Num) -> Num {
+        let is_inverse = |dim: &Dimensions, conv: &dyn Conversion| {
+            dim.dimensions.get(&conv.space()).unwrap().signum() < 0.0
+        };
+
         for i in &self.units {
-            if self.dimensions.get(&i.conversion.space()).unwrap().signum() == 0.0 {
+            if is_inverse(&self, i.conversion) {
                 value = i.conversion.from_base(&value);
             } else {
                 value = i.conversion.to_base(&value);
             }
             value *= (10.0 as Num).powf(i.power as Num);
+
             self.dimensions
                 .entry(i.conversion.space())
-                .and_modify(|x| *x -= i.power as Num);
+                .and_modify(|x| *x = (x.abs() - i.power as Num) * x.signum());
         }
 
-        dbg!(value);
         for i in &other.units {
-            if other
-                .dimensions
-                .get(&i.conversion.space())
-                .unwrap()
-                .signum()
-                == 0.0
-            {
-                value = i.conversion.from_base(&value);
-            } else {
+            if is_inverse(&other, i.conversion) {
                 value = i.conversion.to_base(&value);
+            } else {
+                value = i.conversion.from_base(&value);
             }
             value *= (10.0 as Num).powf(i.power as Num);
+
             other
                 .dimensions
                 .entry(i.conversion.space())
-                .and_modify(|x| *x -= i.power as Num);
+                .and_modify(|x| *x = (x.abs() - i.power as Num) * x.signum());
         }
 
         // for i in [self, other] {
