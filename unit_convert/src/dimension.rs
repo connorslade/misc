@@ -214,7 +214,7 @@ pub mod expander {
     mod test {
         use crate::{
             dimension::{Op, Token},
-            units::{duration::Second, length::Meter, Conversion},
+            units::{length::Meter, time::Second, Conversion},
         };
 
         use super::Expander;
@@ -339,7 +339,7 @@ pub mod tree {
         use super::super::{Op, Token};
         use super::Treeifyer;
         use crate::units::{
-            duration::{Minute, Second},
+            time::{Minute, Second},
             Conversion,
         };
 
@@ -480,7 +480,7 @@ pub mod tokenizer {
 
     #[cfg(test)]
     mod test {
-        use crate::units::{duration::Second, length::Meter, Conversion};
+        use crate::units::{length::Meter, time::Second, Conversion};
 
         use super::{Op, Token, Tokenizer};
 

@@ -1,16 +1,17 @@
 use std::fmt::{Debug, Display};
 
-use crate::{impl_conversion, impl_unit_space, Num};
-
-pub mod duration;
+use crate::Num;
 pub mod length;
+pub mod mass;
+pub mod time;
 
-pub const UNIT_SPACES: &[&dyn UnitSpace] = &[&duration::Duration, &length::Length];
+pub const UNIT_SPACES: &[&dyn UnitSpace] = &[&time::Time, &length::Length];
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum Space {
-    Duration,
+    Time,
     Length,
+    Mass,
 }
 
 pub trait UnitSpace {
@@ -62,61 +63,6 @@ pub fn find_unit(s: &str) -> Option<&'static dyn Conversion> {
     UNIT_SPACES.iter().find_map(|space| space.get(s).copied())
 }
 
-#[macro_export]
-macro_rules! impl_conversion {
-    ($struct:ident, $name:expr, $space:ident, $to_base:expr, $from_base:expr$(, aliases = [$($aliases:expr),*])?$(, metric = $metric:expr)?) => {
-        pub struct $struct;
-        impl Conversion for $struct {
-            fn name(&self) -> &'static str {
-                $name
-            }
-
-            fn space(&self) -> Space {
-                Space::$space
-            }
-
-            fn to_base(&self, this: &Num) -> Num {
-                let exe: fn(&Num) -> Num = $to_base;
-                exe(this)
-            }
-
-            fn from_base(&self, s: &Num) -> Num {
-                let exe: fn(&Num) -> Num = $from_base;
-                exe(s)
-            }
-
-            fn aliases(&self) -> &'static [&'static str] {
-                &[$($($aliases),*)?]
-            }
-
-            fn is_metric(&self) -> bool {
-                false
-                $(;$metric)?
-            }
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! impl_unit_space {
-    ($struct:ident, $name:expr, $space:ident, $units:expr) => {
-        pub struct $struct;
-        impl UnitSpace for $struct {
-            fn name(&self) -> &'static str {
-                $name
-            }
-
-            fn space(&self) -> Space {
-                Space::$space
-            }
-
-            fn units(&self) -> &'static [&'static dyn Conversion] {
-                $units
-            }
-        }
-    };
-}
-
 impl Display for dyn UnitSpace {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.name())
@@ -143,6 +89,72 @@ impl PartialEq for dyn Conversion {
     }
 }
 
+#[macro_export]
+macro_rules! impl_units {
+    ($space:ident => {
+        $(
+            $(#[$meta:meta])?
+            $struct:ident => [
+                <| $to_base:expr,
+                |> $from_base:expr
+                $(, aliases = [$($aliases:expr),*])?
+                $(, metric = $metric:expr)?
+            ]
+        ),*
+    }) => {
+        use $crate::units::{Conversion, Num, Space, UnitSpace};
+        use identconv::lower_strify;
+
+        pub struct $space;
+        impl UnitSpace for $space {
+            fn name(&self) -> &'static str {
+                lower_strify!($space)
+            }
+
+            fn space(&self) -> Space {
+                Space::$space
+            }
+
+            fn units(&self) -> &'static [&'static dyn Conversion] {
+                &[$(&$struct,)*]
+            }
+        }
+
+        $(
+            $(#[$meta])?
+            pub struct $struct;
+            impl Conversion for $struct {
+                fn name(&self) -> &'static str {
+                    lower_strify!($struct)
+                }
+
+                fn space(&self) -> Space {
+                    Space::$space
+                }
+
+                fn to_base(&self, this: &Num) -> Num {
+                    let exe: fn(&Num) -> Num = $to_base;
+                    exe(this)
+                }
+
+                fn from_base(&self, s: &Num) -> Num {
+                    let exe: fn(&Num) -> Num = $from_base;
+                    exe(s)
+                }
+
+                fn aliases(&self) -> &'static [&'static str] {
+                    &[$($($aliases),*)?]
+                }
+
+                fn is_metric(&self) -> bool {
+                    false
+                    $(;$metric)?
+                }
+            }
+        )*
+    };
+}
+
 #[cfg(test)]
 mod test {
     use std::collections::HashSet;
@@ -154,6 +166,7 @@ mod test {
 
         for space in super::UNIT_SPACES {
             for unit in space.units() {
+                println!("checking {}", unit.name());
                 let mut success = sack.insert(unit.name());
                 for alias in unit.aliases() {
                     success &= sack.insert(alias);

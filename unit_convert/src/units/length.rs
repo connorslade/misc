@@ -1,50 +1,41 @@
-use super::{impl_conversion, impl_unit_space, Conversion, Num, Space, UnitSpace};
+use crate::impl_units;
 
-impl_unit_space!(
-    Length,
-    "length",
-    Length,
-    &[&Meter, &Inch, &Foot, &Yard, &Mile]
-);
-
-impl_conversion!(
-    Meter,
-    "meter",
-    Length,
-    |m| *m,
-    |m| *m,
-    aliases = ["m", "metre"],
-    metric = true
-);
-impl_conversion!(
-    Inch,
-    "inch",
-    Length,
-    |i| i * 0.0254,
-    |m| m / 0.0254,
-    aliases = ["in"]
-);
-impl_conversion!(
-    Foot,
-    "foot",
-    Length,
-    |f| f * 0.3048,
-    |m| m / 0.3048,
-    aliases = ["ft"]
-);
-impl_conversion!(
-    Yard,
-    "yard",
-    Length,
-    |y| y * 0.9144,
-    |m| m / 0.9144,
-    aliases = ["yd"]
-);
-impl_conversion!(
-    Mile,
-    "mile",
-    Length,
-    |mi| mi * 1609.344,
-    |m| m / 1609.344,
-    aliases = ["mi"]
-);
+impl_units! {
+    Length => {
+        Meter => [
+            <| |m| *m,
+            |> |m| *m,
+            aliases = ["m", "metre"],
+            metric = true
+        ],
+        Inch => [
+            <| |i| i * 0.0254,
+            |> |m| m / 0.0254,
+            aliases = ["in"]
+        ],
+        Thou => [
+            <| |th| th * 0.0000254,
+            |> |m| m / 0.0000254,
+            aliases = ["mil"]
+        ],
+        Foot => [
+            <| |f| f * 0.3048,
+            |> |m| m / 0.3048,
+            aliases = ["ft"]
+        ],
+        Yard => [
+            <| |y| y * 0.9144,
+            |> |m| m / 0.9144,
+            aliases = ["yd"]
+        ],
+        Mile => [
+            <| |mi| mi * 1609.344,
+            |> |m| m / 1609.344,
+            aliases = ["mi"]
+        ],
+        League => [
+            <| |l| l * 4828.0417,
+            |> |m| m / 4828.0417
+        ]
+    }
+}
