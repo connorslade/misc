@@ -15,7 +15,7 @@ pub struct Dimensions {
     units: Vec<Unit>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Unit {
     conversion: &'static dyn Conversion,
     power: i32,
@@ -23,10 +23,7 @@ pub struct Unit {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
-    Unit {
-        conversion: &'static dyn Conversion,
-        power: i32,
-    },
+    Unit(Unit),
     Num(Num),
     Op(Op),
     Group(Vec<Token>),
@@ -196,7 +193,7 @@ pub mod expander {
                         self._expand(*right, exponent)?;
                     }
                 },
-                Token::Unit { conversion, power } => {
+                Token::Unit(Unit { conversion, power }) => {
                     self.add_dimension(conversion.space(), exponent);
                     self.units.push(Unit {
                         conversion,
@@ -224,7 +221,7 @@ pub mod expander {
     #[cfg(test)]
     mod test {
         use crate::{
-            dimension::{Op, Token},
+            dimension::{Op, Token, Unit},
             units::{length::Meter, time::Second, Conversion},
         };
 
@@ -237,16 +234,16 @@ pub mod expander {
 
             let inp = Token::Tree(
                 Op::Div,
-                Box::new(Token::Unit {
+                Box::new(Token::Unit(Unit {
                     conversion: meter,
                     power: 1,
-                }),
+                })),
                 Box::new(Token::Tree(
                     Op::Pow,
-                    Box::new(Token::Unit {
+                    Box::new(Token::Unit(Unit {
                         conversion: sec,
                         power: 1,
-                    }),
+                    })),
                     Box::new(Token::Num(2.0)),
                 )),
             );
@@ -349,6 +346,7 @@ pub mod tree {
     mod test {
         use super::super::{Op, Token};
         use super::Treeifyer;
+        use crate::dimension::Unit;
         use crate::units::{
             time::{Minute, Second},
             Conversion,
@@ -360,15 +358,15 @@ pub mod tree {
             let min = &Minute as &'static dyn Conversion;
 
             let tokens = vec![
-                Token::Unit {
+                Token::Unit(Unit {
                     conversion: min,
                     power: 1,
-                },
+                }),
                 Token::Op(Op::Div),
-                Token::Unit {
+                Token::Unit(Unit {
                     conversion: sec,
                     power: 1,
-                },
+                }),
                 Token::Op(Op::Pow),
                 Token::Num(2.0),
             ];
@@ -379,16 +377,16 @@ pub mod tree {
                 tree,
                 Token::Tree(
                     Op::Div,
-                    Box::new(Token::Unit {
+                    Box::new(Token::Unit(Unit {
                         conversion: min,
                         power: 1,
-                    },),
+                    })),
                     Box::new(Token::Tree(
                         Op::Pow,
-                        Box::new(Token::Unit {
+                        Box::new(Token::Unit(Unit {
                             conversion: sec,
                             power: 1,
-                        },),
+                        })),
                         Box::new(Token::Num(2.0)),
                     ))
                 )
@@ -400,7 +398,7 @@ pub mod tree {
 pub mod tokenizer {
     use anyhow::{bail, Result};
 
-    use super::{Op, Token};
+    use super::{Op, Token, Unit};
     use crate::{prefix, Num};
 
     pub struct Tokenizer {
@@ -476,10 +474,10 @@ pub mod tokenizer {
             if let Ok(num) = self.buffer.parse::<Num>() {
                 self.tokens.push(Token::Num(num));
             } else if let Some((conversion, power)) = prefix::get(&self.buffer) {
-                self.tokens.push(Token::Unit {
+                self.tokens.push(Token::Unit(Unit {
                     conversion,
                     power: power.map(|x| x.power).unwrap_or(1),
-                });
+                }));
             } else {
                 bail!("Invalid token: {}", self.buffer);
             }
@@ -491,7 +489,10 @@ pub mod tokenizer {
 
     #[cfg(test)]
     mod test {
-        use crate::units::{length::Meter, time::Second, Conversion};
+        use crate::{
+            dimension::Unit,
+            units::{length::Meter, time::Second, Conversion},
+        };
 
         use super::{Op, Token, Tokenizer};
 
@@ -504,15 +505,15 @@ pub mod tokenizer {
             assert_eq!(
                 tokens,
                 vec![
-                    Token::Unit {
+                    Token::Unit(Unit {
                         conversion: meter,
                         power: 1,
-                    },
+                    }),
                     Token::Op(Op::Div),
-                    Token::Unit {
+                    Token::Unit(Unit {
                         conversion: sec,
                         power: 1,
-                    },
+                    }),
                     Token::Op(Op::Pow),
                     Token::Num(2.0),
                 ]
@@ -528,21 +529,21 @@ pub mod tokenizer {
             assert_eq!(
                 tokens,
                 vec![
-                    Token::Unit {
+                    Token::Unit(Unit {
                         conversion: meter,
                         power: 1,
-                    },
+                    }),
                     Token::Op(Op::Div),
                     Token::Group(vec![
-                        Token::Unit {
+                        Token::Unit(Unit {
                             conversion: sec,
                             power: 1,
-                        },
+                        }),
                         Token::Op(Op::Mul),
-                        Token::Unit {
+                        Token::Unit(Unit {
                             conversion: sec,
                             power: 1,
-                        }
+                        })
                     ]),
                 ]
             );
