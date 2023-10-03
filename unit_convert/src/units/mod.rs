@@ -1,7 +1,4 @@
-use std::{
-    any,
-    fmt::{Debug, Display},
-};
+use std::fmt::{Debug, Display};
 
 use crate::{impl_conversion, impl_unit_space, Num};
 
@@ -39,6 +36,7 @@ pub trait Conversion {
     /// Converts a value in this unit to the unit space's base unit.
     fn to_base(&self, this: &Num) -> Num;
     /// Converts a value in the unit space's base unit to this unit.
+    #[allow(clippy::wrong_self_convention)]
     fn from_base(&self, s: &Num) -> Num;
 
     /// Gets the aliases of the unit.
@@ -60,8 +58,8 @@ pub trait Conversion {
     }
 }
 
-pub fn find_unit(s: &str) -> Option<&'static &'static dyn Conversion> {
-    UNIT_SPACES.iter().find_map(|space| space.get(s))
+pub fn find_unit(s: &str) -> Option<&'static dyn Conversion> {
+    UNIT_SPACES.iter().find_map(|space| space.get(s).copied())
 }
 
 #[macro_export]

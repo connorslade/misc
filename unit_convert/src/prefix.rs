@@ -1,4 +1,4 @@
-use crate::units::{find_unit, Conversion, UNIT_SPACES};
+use crate::units::{find_unit, Conversion};
 
 #[rustfmt::skip]
 const METRIC_PREFIX: [Prefix; 24] = [
@@ -48,8 +48,8 @@ impl Prefix {
 fn strip_prefix(s: &str) -> Option<(&str, &Prefix)> {
     for prefix in METRIC_PREFIX.iter() {
         for i in [prefix.name, prefix.symbol] {
-            if s.starts_with(i) {
-                return Some((&s[i.len()..], prefix));
+            if let Some(i) = s.strip_prefix(i) {
+                return Some((i, prefix));
             }
         }
     }
@@ -57,7 +57,7 @@ fn strip_prefix(s: &str) -> Option<(&str, &Prefix)> {
     None
 }
 
-pub fn get(s: &str) -> Option<(&'static &'static dyn Conversion, Option<&Prefix>)> {
+pub fn get(s: &str) -> Option<(&'static dyn Conversion, Option<&Prefix>)> {
     if let Some(i) = find_unit(s) {
         return Some((i, None));
     }

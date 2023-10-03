@@ -22,7 +22,7 @@ struct Unit {
 #[derive(Debug, Clone, PartialEq)]
 enum Token {
     Unit {
-        conversion: &'static &'static dyn Conversion,
+        conversion: &'static dyn Conversion,
         power: i32,
     },
     Num(Num),
@@ -185,7 +185,7 @@ mod expander {
                 Token::Unit { conversion, power } => {
                     self.add_dimension(conversion.space(), exponent);
                     self.units.push(Unit {
-                        conversion: *conversion,
+                        conversion,
                         power: if power == 1 { 0 } else { power },
                     });
                 }
@@ -217,8 +217,8 @@ mod expander {
 
         #[test]
         fn test_expander() {
-            let sec = &(&Second as &'static dyn Conversion);
-            let meter = &(&Meter as &'static dyn Conversion);
+            let sec = &Second as &'static dyn Conversion;
+            let meter = &Meter as &'static dyn Conversion;
 
             let inp = Token::Tree(
                 Op::Div,
@@ -310,7 +310,7 @@ mod tree {
                     let left = make_tree(self.tokens.remove(i - 1));
                     let right = make_tree(self.tokens.remove(i));
 
-                    self.tokens[i - 1] = Token::Tree(op.clone(), Box::new(left), Box::new(right));
+                    self.tokens[i - 1] = Token::Tree(op, Box::new(left), Box::new(right));
                     self.precedence
                         .entry(op.precedence())
                         .and_modify(|x| *x -= 1);
@@ -339,8 +339,8 @@ mod tree {
 
         #[test]
         fn test_tree() {
-            let sec = &(&Second as &'static dyn Conversion);
-            let min = &(&Minute as &'static dyn Conversion);
+            let sec = &Second as &'static dyn Conversion;
+            let min = &Minute as &'static dyn Conversion;
 
             let tokens = vec![
                 Token::Unit {
@@ -458,7 +458,7 @@ mod tokenizer {
                 self.tokens.push(Token::Num(num));
             } else if let Some((conversion, power)) = prefix::get(&self.buffer) {
                 self.tokens.push(Token::Unit {
-                    conversion: conversion,
+                    conversion,
                     power: power.map(|x| x.power).unwrap_or(1),
                 });
             } else {
@@ -477,8 +477,8 @@ mod tokenizer {
 
         #[test]
         fn test_tokenize() {
-            let sec = &(&Second as &'static dyn Conversion);
-            let meter = &(&Meter as &'static dyn Conversion);
+            let sec = &Second as &'static dyn Conversion;
+            let meter = &Meter as &'static dyn Conversion;
 
             let tokens = Tokenizer::tokenize("m/s^2");
             assert_eq!(
@@ -501,8 +501,8 @@ mod tokenizer {
 
         #[test]
         fn test_tokenize_2() {
-            let sec = &(&Second as &'static dyn Conversion);
-            let meter = &(&Meter as &'static dyn Conversion);
+            let sec = &Second as &'static dyn Conversion;
+            let meter = &Meter as &'static dyn Conversion;
 
             let tokens = Tokenizer::tokenize("m / (s * s)");
             assert_eq!(

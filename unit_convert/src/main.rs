@@ -3,23 +3,19 @@ mod input;
 mod prefix;
 mod units;
 
-use std::str::FromStr;
+use std::{env, str::FromStr};
 
 use dimension::Dimensions;
 
 type Num = f64;
 
 fn main() {
-    // let inp = "10m/s => mi/h";
-    let inp = "22.3mi/h => m/s";
-    let inp = dbg!(input::Input::from_str(inp)).unwrap();
+    let inp = env::args().skip(1).collect::<String>();
+    let inp = input::Input::from_str(&inp).unwrap();
 
-    let from_dim = dbg!(Dimensions::from_str(&inp.from_unit)).unwrap();
-    let to_dim = dbg!(Dimensions::from_str(&inp.to_unit)).unwrap();
+    let from_dim = Dimensions::from_str(&inp.from_unit).unwrap();
+    let to_dim = Dimensions::from_str(&inp.to_unit).unwrap();
 
     let val = from_dim.convert(to_dim, inp.value);
     println!("{}{} => {}{}", inp.value, inp.from_unit, val, inp.to_unit);
 }
-
-// m/s^2
-// dim => m{1}, s{-2}
