@@ -10,8 +10,14 @@ fn main() -> Result<()> {
 
     let from_dim = Dimensions::from_str(&inp.from_unit)?;
     let to_dim = Dimensions::from_str(&inp.to_unit)?;
+    println!(
+        "| {}\n| {}\n\\== {}",
+        from_dim.as_base_units(),
+        to_dim.as_base_units(),
+        from_dim == to_dim
+    );
 
-    let val = from_dim.convert(to_dim, inp.value)?;
+    let val = from_dim.convert(&to_dim, inp.value)?;
     println!("{}{} => {}{}", inp.value, inp.from_unit, val, inp.to_unit);
     Ok(())
 }

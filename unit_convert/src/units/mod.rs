@@ -34,6 +34,7 @@ pub trait Conversion {
     fn name(&self) -> &'static str;
     /// Gets the unit space of the unit.
     fn space(&self) -> Space;
+    // todo: Use Num not a ref
     /// Converts a value in this unit to the unit space's base unit.
     fn to_base(&self, this: &Num) -> Num;
     /// Converts a value in the unit space's base unit to this unit.

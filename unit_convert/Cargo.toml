@@ -20,7 +20,7 @@ path = "src/main.rs"
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }
-float_eq = "1.0.1"
+approx = "0.5.1"
 paste = "1.0.14"
 
 [[bench]]

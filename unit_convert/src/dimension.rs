@@ -5,20 +5,20 @@ use hashbrown::HashMap;
 
 use crate::{
     dimension::{expander::Expander, tokenizer::Tokenizer, tree::Treeifyer},
-    units::{Conversion, Space},
+    misc::{NumToStringWithChars, SUPERSCRIPT_CHARSET},
+    units::Conversion,
     Num,
 };
 
 #[derive(Debug)]
 pub struct Dimensions {
-    dimensions: HashMap<Space, Num>,
     units: Vec<Unit>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Unit {
     conversion: &'static dyn Conversion,
-    power: i32,
+    power: Num,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -39,48 +39,26 @@ pub enum Op {
 }
 
 impl Dimensions {
-    pub fn convert(mut self, mut other: Dimensions, mut value: Num) -> Result<Num> {
-        let is_inverse = |dim: &Dimensions, conv: &dyn Conversion| {
-            dim.dimensions.get(&conv.space()).unwrap().signum() < 0.0
-        };
-
+    pub fn convert(&self, other: &Dimensions, mut value: Num) -> Result<Num> {
         for i in &self.units {
-            if is_inverse(&self, i.conversion) {
-                value = i.conversion.from_base(&value);
-            } else {
-                value = i.conversion.to_base(&value);
+            for _ in 0..(i.power.abs() as u64) {
+                if i.power.signum() > 0.0 {
+                    value = i.conversion.to_base(&value);
+                } else {
+                    value = i.conversion.from_base(&value);
+                }
             }
-            value *= (10.0 as Num).powf(i.power as Num);
-
-            self.dimensions
-                .entry(i.conversion.space())
-                .and_modify(|x| *x = (x.abs() - i.power as Num) * x.signum());
         }
 
         for i in &other.units {
-            if is_inverse(&other, i.conversion) {
-                value = i.conversion.to_base(&value);
-            } else {
-                value = i.conversion.from_base(&value);
+            for _ in 0..(i.power.abs() as u64) {
+                if i.power.signum() > 0.0 {
+                    value = i.conversion.from_base(&value);
+                } else {
+                    value = i.conversion.to_base(&value);
+                }
             }
-            value *= (10.0 as Num).powf(i.power as Num);
-
-            other
-                .dimensions
-                .entry(i.conversion.space())
-                .and_modify(|x| *x = (x.abs() - i.power as Num) * x.signum());
         }
-
-        // for i in [self, other] {
-        //     if i.dimensions
-        //         .iter()
-        //         .filter(|(_, &count)| count > 0.0)
-        //         .count()
-        //         != 0
-        //     {
-        //         panic!("Invalid dimensions");
-        //     }
-        // }
 
         Ok(value)
     }
@@ -88,19 +66,20 @@ impl Dimensions {
     pub fn as_base_units(&self) -> String {
         let mut out = String::new();
 
-        for (space, exponent) in &self.dimensions {
-            out.push_str(&format!("[{space:?}]^{exponent} "));
+        for unit in &self.units {
+            out.push_str(&if unit.power == 1.0 {
+                format!("[{}] ", unit.conversion.name())
+            } else {
+                format!(
+                    "[{}]{} ",
+                    unit.conversion.name(),
+                    unit.power.to_string_with_chars(SUPERSCRIPT_CHARSET)
+                )
+            });
         }
 
         out.pop();
         out
-    }
-
-    fn get_space(&self, space: Space) -> Option<Num> {
-        self.dimensions
-            .iter()
-            .find(|(&unit_space, _)| unit_space == space)
-            .map(|(_, &exponent)| exponent)
     }
 }
 
@@ -120,21 +99,35 @@ impl FromStr for Dimensions {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let tokens = Tokenizer::tokenize(s)?;
         let tree = Treeifyer::treeify(tokens);
-        let (dimensions, units) = Expander::expand(tree)?;
+        let units = Expander::expand(tree)?;
 
-        Ok(Dimensions { dimensions, units })
+        Ok(Dimensions { units })
     }
 }
 
 impl PartialEq for Dimensions {
     fn eq(&self, other: &Self) -> bool {
-        if self.dimensions.len() != other.dimensions.len() {
+        let mut self_dimensions = HashMap::new();
+        for unit in &self.units {
+            *self_dimensions
+                .entry(unit.conversion.space())
+                .or_insert(0.0) += unit.power;
+        }
+
+        let mut other_dimensions = HashMap::new();
+        for unit in &other.units {
+            *other_dimensions
+                .entry(unit.conversion.space())
+                .or_insert(0.0) += unit.power;
+        }
+
+        if self_dimensions.len() != other_dimensions.len() {
             return false;
         }
 
-        for (&space, &exponent) in &self.dimensions {
-            match other.get_space(space) {
-                Some(i) if i == exponent => {}
+        for (&space, &exponent) in &self_dimensions {
+            match other_dimensions.get(&space) {
+                Some(&i) if i == exponent => {}
                 _ => return false,
             }
         }
@@ -144,31 +137,25 @@ impl PartialEq for Dimensions {
 }
 
 pub mod expander {
-    use hashbrown::HashMap;
-
     use anyhow::{bail, Result};
 
     use super::{Op, Token, Unit};
-    use crate::{units::Space, Num};
+    use crate::Num;
 
     pub struct Expander {
-        dimensions: HashMap<Space, Num>,
         units: Vec<Unit>,
     }
 
     impl Expander {
-        pub fn expand(token: Token) -> Result<(HashMap<Space, f64>, Vec<Unit>)> {
+        pub fn expand(token: Token) -> Result<Vec<Unit>> {
             let mut exp = Self::new();
             exp._expand(token, 1.0)?;
 
-            Ok((exp.dimensions, exp.units))
+            Ok(exp.units)
         }
 
         fn new() -> Self {
-            Self {
-                dimensions: HashMap::new(),
-                units: Vec::new(),
-            }
+            Self { units: Vec::new() }
         }
 
         fn _expand(&mut self, token: Token, exponent: Num) -> Result<()> {
@@ -194,10 +181,10 @@ pub mod expander {
                     }
                 },
                 Token::Unit(Unit { conversion, power }) => {
-                    self.add_dimension(conversion.space(), exponent);
                     self.units.push(Unit {
                         conversion,
-                        power: if power == 1 { 0 } else { power },
+                        // power: if power == 1.0 { 0.0 } else { power },
+                        power: exponent + power,
                     });
                 }
                 Token::Group(group) => {
@@ -208,13 +195,6 @@ pub mod expander {
                 Token::Num(..) | Token::Op(..) => unreachable!(),
             }
             Ok(())
-        }
-
-        fn add_dimension(&mut self, space: Space, exp: Num) {
-            self.dimensions
-                .entry(space)
-                .and_modify(|x| *x += exp)
-                .or_insert(exp);
         }
     }
 
@@ -236,22 +216,32 @@ pub mod expander {
                 Op::Div,
                 Box::new(Token::Unit(Unit {
                     conversion: meter,
-                    power: 1,
+                    power: 1.0,
                 })),
                 Box::new(Token::Tree(
                     Op::Pow,
                     Box::new(Token::Unit(Unit {
                         conversion: sec,
-                        power: 1,
+                        power: 1.0,
                     })),
                     Box::new(Token::Num(2.0)),
                 )),
             );
 
-            let (exp, _) = Expander::expand(inp).unwrap();
-            assert_eq!(exp.len(), 2);
-            assert_eq!(exp.get(&meter.space()), Some(&1.0));
-            assert_eq!(exp.get(&sec.space()), Some(&-2.0));
+            let exp = Expander::expand(inp).unwrap();
+            assert_eq!(
+                exp,
+                vec![
+                    Unit {
+                        conversion: meter,
+                        power: 1.0
+                    },
+                    Unit {
+                        conversion: sec,
+                        power: -2.0
+                    }
+                ]
+            );
         }
     }
 }
@@ -360,12 +350,12 @@ pub mod tree {
             let tokens = vec![
                 Token::Unit(Unit {
                     conversion: min,
-                    power: 1,
+                    power: 1.0,
                 }),
                 Token::Op(Op::Div),
                 Token::Unit(Unit {
                     conversion: sec,
-                    power: 1,
+                    power: 1.0,
                 }),
                 Token::Op(Op::Pow),
                 Token::Num(2.0),
@@ -379,13 +369,13 @@ pub mod tree {
                     Op::Div,
                     Box::new(Token::Unit(Unit {
                         conversion: min,
-                        power: 1,
+                        power: 1.0
                     })),
                     Box::new(Token::Tree(
                         Op::Pow,
                         Box::new(Token::Unit(Unit {
                             conversion: sec,
-                            power: 1,
+                            power: 1.0
                         })),
                         Box::new(Token::Num(2.0)),
                     ))
@@ -476,7 +466,7 @@ pub mod tokenizer {
             } else if let Some((conversion, power)) = prefix::get(&self.buffer) {
                 self.tokens.push(Token::Unit(Unit {
                     conversion,
-                    power: power.map(|x| x.power).unwrap_or(1),
+                    power: power.map(|x| x.power as Num).unwrap_or(1.0),
                 }));
             } else {
                 bail!("Invalid token: {}", self.buffer);
@@ -507,12 +497,12 @@ pub mod tokenizer {
                 vec![
                     Token::Unit(Unit {
                         conversion: meter,
-                        power: 1,
+                        power: 1.0
                     }),
                     Token::Op(Op::Div),
                     Token::Unit(Unit {
                         conversion: sec,
-                        power: 1,
+                        power: 1.0
                     }),
                     Token::Op(Op::Pow),
                     Token::Num(2.0),
@@ -531,18 +521,18 @@ pub mod tokenizer {
                 vec![
                     Token::Unit(Unit {
                         conversion: meter,
-                        power: 1,
+                        power: 1.0
                     }),
                     Token::Op(Op::Div),
                     Token::Group(vec![
                         Token::Unit(Unit {
                             conversion: sec,
-                            power: 1,
+                            power: 1.0
                         }),
                         Token::Op(Op::Mul),
                         Token::Unit(Unit {
                             conversion: sec,
-                            power: 1,
+                            power: 1.0
                         })
                     ]),
                 ]
