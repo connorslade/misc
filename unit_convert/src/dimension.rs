@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 
 use crate::{
     dimension::{expander::Expander, tokenizer::Tokenizer, tree::Treeifyer},
@@ -9,18 +9,18 @@ use crate::{
 #[derive(Debug)]
 pub struct Dimensions {
     /// Assumed to always be simplified, no two dimensions with the same space
-    dimensions: Vec<Dimension>,
-    // units: Vec<&'static dyn Conversion>,
+    dimensions: HashMap<Space, Num>,
+    units: Vec<Unit>,
 }
 
-#[derive(Debug, PartialEq)]
-pub struct Dimension {
-    unit_space: Space,
-    exponent: Num,
+#[derive(Debug)]
+struct Unit {
+    conversion: &'static dyn Conversion,
+    power: i32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Token {
+enum Token {
     Unit {
         conversion: &'static &'static dyn Conversion,
         power: i32,
@@ -32,7 +32,7 @@ pub enum Token {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum Op {
+enum Op {
     #[default]
     Mul,
     Div,
@@ -40,11 +40,58 @@ pub enum Op {
 }
 
 impl Dimensions {
+    pub fn convert(mut self, mut other: Dimensions, mut value: Num) -> Num {
+        for i in &self.units {
+            if self.dimensions.get(&i.conversion.space()).unwrap().signum() == 0.0 {
+                value = i.conversion.from_base(&value);
+            } else {
+                value = i.conversion.to_base(&value);
+            }
+            value *= (10.0 as Num).powf(i.power as Num);
+            self.dimensions
+                .entry(i.conversion.space())
+                .and_modify(|x| *x -= i.power as Num);
+        }
+
+        dbg!(value);
+        for i in &other.units {
+            if other
+                .dimensions
+                .get(&i.conversion.space())
+                .unwrap()
+                .signum()
+                == 0.0
+            {
+                value = i.conversion.from_base(&value);
+            } else {
+                value = i.conversion.to_base(&value);
+            }
+            value *= (10.0 as Num).powf(i.power as Num);
+            other
+                .dimensions
+                .entry(i.conversion.space())
+                .and_modify(|x| *x -= i.power as Num);
+        }
+
+        // for i in [self, other] {
+        //     if i.dimensions
+        //         .iter()
+        //         .filter(|(_, &count)| count > 0.0)
+        //         .count()
+        //         != 0
+        //     {
+        //         panic!("Invalid dimensions");
+        //     }
+        // }
+
+        value
+    }
+
     fn get_space(&self, space: Space) -> Option<Num> {
         self.dimensions
             .iter()
-            .find(|x| x.unit_space == space)
-            .map(|x| x.exponent)
+            .find(|(&unit_space, _)| unit_space == space)
+            .map(|(_, &exponent)| exponent)
     }
 }
 
@@ -61,13 +108,12 @@ impl Op {
 impl FromStr for Dimensions {
     type Err = anyhow::Error;
 
-    // todo: parse units into dimensions
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let tokens = Tokenizer::tokenize(s);
         let tree = Treeifyer::treeify(tokens);
-        let dimensions = Expander::expand(tree);
-        // todo: simplify
-        Ok(Dimensions { dimensions })
+        let (dimensions, units) = Expander::expand(tree);
+
+        Ok(Dimensions { dimensions, units })
     }
 }
 
@@ -77,9 +123,9 @@ impl PartialEq for Dimensions {
             return false;
         }
 
-        for dim in &self.dimensions {
-            match other.get_space(dim.unit_space) {
-                Some(i) if i == dim.exponent => {}
+        for (&space, &exponent) in &self.dimensions {
+            match other.get_space(space) {
+                Some(i) if i == exponent => {}
                 _ => return false,
             }
         }
@@ -93,29 +139,25 @@ mod expander {
 
     use crate::{units::Space, Num};
 
-    use super::{Dimension, Op, Token};
+    use super::{Op, Token, Unit};
 
     pub struct Expander {
         dimensions: HashMap<Space, Num>,
+        units: Vec<Unit>,
     }
 
     impl Expander {
-        pub fn expand(token: Token) -> Vec<Dimension> {
+        pub(super) fn expand(token: Token) -> (HashMap<Space, f64>, Vec<Unit>) {
             let mut exp = Self::new();
             exp._expand(token, 1.0);
 
-            exp.dimensions
-                .into_iter()
-                .map(|(unit_space, exponent)| Dimension {
-                    unit_space,
-                    exponent,
-                })
-                .collect()
+            (exp.dimensions, exp.units)
         }
 
         fn new() -> Self {
             Self {
                 dimensions: HashMap::new(),
+                units: Vec::new(),
             }
         }
 
@@ -141,8 +183,12 @@ mod expander {
                         self._expand(*right, exponent);
                     }
                 },
-                Token::Unit { conversion, .. } => {
+                Token::Unit { conversion, power } => {
                     self.add_dimension(conversion.space(), exponent);
+                    self.units.push(Unit {
+                        conversion: *conversion,
+                        power: if power == 1 { 0 } else { power },
+                    });
                 }
                 Token::Group(group) => {
                     for i in group {
@@ -164,7 +210,7 @@ mod expander {
     #[cfg(test)]
     mod test {
         use crate::{
-            dimension::{Dimension, Op, Token},
+            dimension::{Op, Token},
             units::{duration::Second, length::Meter, Conversion},
         };
 
@@ -191,20 +237,10 @@ mod expander {
                 )),
             );
 
-            let exp = Expander::expand(inp);
-            assert_eq!(
-                exp,
-                vec![
-                    Dimension {
-                        unit_space: meter.space(),
-                        exponent: 1.0,
-                    },
-                    Dimension {
-                        unit_space: sec.space(),
-                        exponent: -2.0,
-                    },
-                ]
-            );
+            let (exp, _) = Expander::expand(inp);
+            assert_eq!(exp.len(), 2);
+            assert_eq!(exp.get(&meter.space()), Some(&1.0));
+            assert_eq!(exp.get(&sec.space()), Some(&-2.0));
         }
     }
 }
@@ -220,7 +256,7 @@ mod tree {
     }
 
     impl Treeifyer {
-        pub fn treeify(mut tokens: Vec<Token>) -> Token {
+        pub(super) fn treeify(mut tokens: Vec<Token>) -> Token {
             if tokens.len() == 1 {
                 let token = tokens.pop().unwrap();
                 match token {
@@ -346,7 +382,7 @@ mod tree {
 }
 
 mod tokenizer {
-    use crate::{prefix, units::find_unit, Num};
+    use crate::{prefix, Num};
 
     use super::{Op, Token};
 
@@ -355,12 +391,12 @@ mod tokenizer {
         index: usize,
         depth: usize,
 
-        pub tokens: Vec<Token>,
+        pub(super) tokens: Vec<Token>,
         buffer: String,
     }
 
     impl Tokenizer {
-        pub fn tokenize(raw: &str) -> Vec<Token> {
+        pub(super) fn tokenize(raw: &str) -> Vec<Token> {
             let mut ctx = Self::new(raw);
 
             while ctx.index < ctx.chars.len() {
@@ -407,22 +443,6 @@ mod tokenizer {
                 tokens: Vec::new(),
                 buffer: String::new(),
             }
-        }
-
-        fn take_int(&mut self) -> i8 {
-            let mut number = String::new();
-            while self.index < self.chars.len() {
-                let chr = self.chars[self.index];
-                if chr.is_ascii_digit() || chr == '-' {
-                    number.push(chr);
-                } else {
-                    break;
-                }
-
-                self.index += 1;
-            }
-
-            number.parse().unwrap()
         }
 
         fn add_token(&mut self, op: Op) {
