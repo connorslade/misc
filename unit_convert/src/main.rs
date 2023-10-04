@@ -1,6 +1,7 @@
 use std::{env, str::FromStr};
 
 use anyhow::Result;
+use thousands::Separable;
 
 use unit_convert::{dimension::Dimensions, input};
 
@@ -18,6 +19,12 @@ fn main() -> Result<()> {
     );
 
     let val = from_dim.convert(&to_dim, inp.value)?;
-    println!("{}{} => {}{}", inp.value, inp.from_unit, val, inp.to_unit);
+    println!(
+        "{} {} => {} {}",
+        inp.value.separate_with_spaces(),
+        inp.from_unit,
+        val.separate_with_spaces(),
+        inp.to_unit
+    );
     Ok(())
 }

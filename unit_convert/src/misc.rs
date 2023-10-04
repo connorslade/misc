@@ -9,6 +9,10 @@ pub trait NumToStringWithChars {
     fn to_string_with_chars(&self, chars: [char; 12]) -> Cow<'_, str>;
 }
 
+pub trait NumToStringWithSeparators {
+    fn to_string_with_separator(&self, separator: char) -> Cow<'_, str>;
+}
+
 impl NumToStringWithChars for Num {
     fn to_string_with_chars(&self, chars: [char; 12]) -> Cow<'_, str> {
         if self.is_nan() {

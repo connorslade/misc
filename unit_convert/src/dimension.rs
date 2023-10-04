@@ -43,13 +43,14 @@ impl Dimensions {
     pub fn convert(&self, other: &Dimensions, mut value: Num) -> Result<Num> {
         for i in &self.units {
             let old = value;
-            value = if i.power.signum() > 0.0 {
-                i.conversion.to_base(&value)
-            } else {
-                i.conversion.from_base(&value)
+            for _ in 0..i.power.abs() as usize {
+                value = if i.power.signum() > 0.0 {
+                    i.conversion.to_base(&value)
+                } else {
+                    i.conversion.from_base(&value)
+                }
             }
-            .powf(i.power.abs())
-                * (10 as Num).powf(i.exponent);
+            value *= (10 as Num).powf(i.exponent);
             println!("{}\t=[ {} ]=>\t{}", old, i.conversion.name(), value);
         }
 
@@ -57,13 +58,14 @@ impl Dimensions {
 
         for i in &other.units {
             let old = value;
-            value = if i.power.signum() > 0.0 {
-                i.conversion.from_base(&value)
-            } else {
-                i.conversion.to_base(&value)
+            for _ in 0..i.power.abs() as usize {
+                value = if i.power.signum() > 0.0 {
+                    i.conversion.from_base(&value)
+                } else {
+                    i.conversion.to_base(&value)
+                }
             }
-            .powf(i.power.abs())
-                * (10 as Num).powf(i.exponent);
+            value *= (10 as Num).powf(-i.exponent);
             println!("{:.5}\t=[ {:} ]=>\t{:.5}", old, i.conversion.name(), value);
         }
 
@@ -190,11 +192,13 @@ pub mod expander {
                 Token::Unit(Unit {
                     conversion, power, ..
                 }) => {
-                    self.units.push(dbg!(Unit {
+                    let unit = Unit {
                         conversion,
                         power: exponent,
-                        exponent: (power.abs() - 1.0) * power.signum(),
-                    }));
+                        exponent: if power == 1.0 { 0.0 } else { power },
+                    };
+                    println!("{:?}", unit);
+                    self.units.push(unit);
                 }
                 Token::Group(group) => {
                     for i in group {
@@ -226,14 +230,14 @@ pub mod expander {
                 Box::new(Token::Unit(Unit {
                     conversion: meter,
                     power: 1.0,
-                    exponent: 1.0,
+                    exponent: 0.0,
                 })),
                 Box::new(Token::Tree(
                     Op::Pow,
                     Box::new(Token::Unit(Unit {
                         conversion: sec,
                         power: 1.0,
-                        exponent: 1.0,
+                        exponent: 0.0,
                     })),
                     Box::new(Token::Num(2.0)),
                 )),
@@ -246,12 +250,12 @@ pub mod expander {
                     Unit {
                         conversion: meter,
                         power: 1.0,
-                        exponent: 1.0,
+                        exponent: 0.0,
                     },
                     Unit {
                         conversion: sec,
                         power: -2.0,
-                        exponent: 1.0,
+                        exponent: 0.0,
                     }
                 ]
             );
