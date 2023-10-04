@@ -1,6 +1,6 @@
 use std::{env, str::FromStr};
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use thousands::Separable;
 
 use unit_convert::{dimension::Dimensions, input};
@@ -11,12 +11,11 @@ fn main() -> Result<()> {
 
     let from_dim = Dimensions::from_str(&inp.from_unit)?;
     let to_dim = Dimensions::from_str(&inp.to_unit)?;
-    println!(
-        "| {}\n| {}\n\\== {}",
-        from_dim.as_base_units(),
-        to_dim.as_base_units(),
-        from_dim == to_dim
-    );
+    println!("{}\n{}\n", from_dim.as_base_units(), to_dim.as_base_units());
+
+    if from_dim != to_dim {
+        bail!("Unit dimensions do not match.");
+    }
 
     let val = from_dim.convert(&to_dim, inp.value)?;
     println!(

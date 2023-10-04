@@ -54,8 +54,6 @@ impl Dimensions {
             println!("{}\t=[ {} ]=>\t{}", old, i.conversion.name(), value);
         }
 
-        println!("\nBase: {}\n", value);
-
         for i in &other.units {
             let old = value;
             for _ in 0..i.power.abs() as usize {
@@ -69,6 +67,7 @@ impl Dimensions {
             println!("{:.5}\t=[ {:} ]=>\t{:.5}", old, i.conversion.name(), value);
         }
 
+        println!();
         Ok(value)
     }
 
@@ -197,7 +196,6 @@ pub mod expander {
                         power: exponent,
                         exponent: if power == 1.0 { 0.0 } else { power },
                     };
-                    println!("{:?}", unit);
                     self.units.push(unit);
                 }
                 Token::Group(group) => {

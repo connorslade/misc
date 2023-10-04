@@ -21,7 +21,7 @@ impl_units! {
         Foot => [
             <| |f| f * 0.3048,
             |> |m| m / 0.3048,
-            aliases = ["ft"]
+            aliases = ["ft", "foot"]
         ],
         Yard => [
             <| |y| y * 0.9144,
