@@ -2,6 +2,7 @@ use afire::Request;
 
 pub mod open_ai;
 
+#[derive(Debug)]
 pub struct Completion {
     pub content_type: String,
     pub body: Vec<u8>,
