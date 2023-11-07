@@ -8,7 +8,7 @@ use serde_json::json;
 use super::{Completer, Completion};
 
 // PROOMPT
-const PROMPT: &str = "Create a response to the following HTTP request. Always add lots of specific detailed information, boilerplate or placeholder information is never acceptable. In the case that the response is in HTML also add relative links to other relevant pages (all internal links) but avoid referencing css or javascript, lets keep these pages very 90s. In your response the first line must be an HTTP content type then a line break, the lines after that will be the document body.
+const PROMPT: &str = "Create a response to the following HTTP request. Always add lots of specific detailed information, boilerplate or placeholder information is never acceptable. In the case that the response is in HTML also add relative links to other relevant pages (all internal links) but avoid referencing css or javascript, lets keep these pages very 90s. In the case that you want to add css, it must be with inline styles of a style tag. In your response the first line must be an HTTP content type then a line break, the lines after that will be the document body. Add as much detail as possible.
 {{METHOD}} {{PATH}}
 
 ---
@@ -59,6 +59,7 @@ impl OpenAI {
             // model: "gpt-3.5-turbo-16k".to_owned(),
             temperature: 1.0,
             max_tokens: 4096,
+            // max_tokens: 16_000,
         }
     }
 }
