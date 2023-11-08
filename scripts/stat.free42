@@ -10,7 +10,32 @@
 @ - Interquartile Range
 @ - Sum
 
-00 { 307-Byte Prgm }
+
+@ Matrix sorting routine
+00 { 46-Byte Prgm }
+01 LBL "SORT"
+02 STO "A"
+03 INDEX "A"
+04 1
+05 1
+06 STOIJ
+07 DROPN 2
+08 LBL 00
+09 [MIN]
+10 DROP
+11 RCLIJ
+12 DROP
+13 R<>R
+14 DROPN 2
+15 I+
+16 FC? 76
+17 GTO 00
+18 RCL "A"
+19 END
+
+
+@ Main program
+00 { 395-Byte Prgm }
 01 LBL "STAT"
 @ Sort matix and store in A, leave original in X
 02 XEQ "SORT"
