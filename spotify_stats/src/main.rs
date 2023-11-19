@@ -175,6 +175,56 @@ fn main() -> Result<()> {
         root.present()?;
     }
 
+    // Song length distribution
+    {
+        let mut song_plays = HashMap::new();
+        for (id, time) in data
+            .iter()
+            .filter_map(|x| Some((x.spotify_track_uri.as_ref()?, x.ms_played)))
+        {
+            song_plays
+                .entry(id)
+                .and_modify(|x| *x += time)
+                .or_insert(time);
+        }
+
+        let mut song_plays = song_plays.into_iter().collect::<Vec<_>>();
+        song_plays.sort_by_key(|x| x.1);
+
+        let song_plays = song_plays
+            .into_iter()
+            .map(|(_id, time)| ((time / 1000) as u32, 1))
+            .collect::<Vec<_>>();
+
+        let max_time = song_plays.iter().map(|x| x.0).max().unwrap();
+
+        let root = SVGBackend::new("out4.svg", (640 * 2, 480 * 2)).into_drawing_area();
+        root.fill(&WHITE)?;
+
+        let mut chart = ChartBuilder::on(&root)
+            .x_label_area_size(35)
+            .y_label_area_size(40)
+            .margin(5)
+            .caption("Time On Each Song", ("sans-serif", 50.0))
+            .build_cartesian_2d((0..100u32).into_segmented(), 0..(250) as u32)?;
+
+        chart
+            .configure_mesh()
+            .disable_x_mesh()
+            .bold_line_style(&WHITE.mix(0.3))
+            .y_desc("Time (s)")
+            .x_desc("Song")
+            .axis_desc_style(("sans-serif", 15))
+            .draw()?;
+
+        chart.draw_series(
+            Histogram::vertical(&chart)
+                .style(BLUE.mix(0.5).filled())
+                .data(song_plays),
+        )?;
+        root.present()?;
+    }
+
     Ok(())
 }
 
