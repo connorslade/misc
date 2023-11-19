@@ -10,8 +10,8 @@ members = [
     "soon",
     "spotify_stats",
     "study",
+    "test_score_scraper",
     "tgm_metadetector",
-    "unit_convert",
     "world_wide_west",
     "youtube_stats",
 ]

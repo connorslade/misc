@@ -1,12 +1,12 @@
-name: unit_convert
+name: test_score_scraper
 
 on:
   push:
     paths:
-      - "unit_convert/**"
+      - "test_score_scraper/**"
 
 env:
-  PROJECT: unit_convert
+  PROJECT: test_score_scraper
 
 jobs:
   build:
