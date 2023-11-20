@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use indicatif::ProgressBar;
 use serde::{Deserialize, Serialize};
 
-const AUTH_TOKEN: &str = include_str!("../auth.token");
+const AUTH_TOKEN: &str = ""; // include_str!("../auth.token")
 
 const OUT_FILE: &str = "data.json";
 const DATA_CACHE: &str = "data_cache.bin";
