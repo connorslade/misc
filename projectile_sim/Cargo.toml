@@ -1,0 +1,8 @@
+[package]
+name = "projectile_sim"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+macroquad = "0.4.4"
+ordered-float = "4.2.0"
