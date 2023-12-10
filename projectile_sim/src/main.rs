@@ -1,8 +1,7 @@
 use macroquad::{
     color,
-    input::{is_mouse_button_down, mouse_delta_position},
+    input::mouse_wheel,
     math::{vec2, Vec2},
-    miniquad::MouseButton,
     shapes::{draw_circle, draw_line},
     text::{draw_text, measure_text},
     ui::{hash, root_ui, widgets},
@@ -11,6 +10,7 @@ use macroquad::{
 use ordered_float::OrderedFloat;
 
 struct State {
+    scale: f32,
     x_offset: f32,
     y_offset: f32,
     initial_velocity: f32,
@@ -22,9 +22,10 @@ struct State {
 #[macroquad::main("ProjectileSim")]
 async fn main() {
     let mut state = State {
+        scale: 1.0,
         x_offset: 0.0,
         y_offset: 0.0,
-        initial_velocity: 5.0,
+        initial_velocity: 80.0,
         initial_angle: 45.0,
         acceleration: 9.8,
         steps: 5.0,
@@ -34,15 +35,16 @@ async fn main() {
         let (width, height) = (window::screen_width(), window::screen_height());
         clear_background(color::BLACK);
 
-        widgets::Window::new(hash!(), vec2(0.0, 0.0), vec2(300., 200.))
+        widgets::Window::new(hash!(), vec2(0.0, 0.0), vec2(300., 170.))
             .label("Config")
             .titlebar(true)
             .ui(&mut *root_ui(), |ui| {
-                ui.slider(hash!(), "Vi", 0.001..150f32, &mut state.initial_velocity);
-                ui.slider(hash!(), "theta", -90f32..90f32, &mut state.initial_angle);
+                ui.slider(hash!(), "Vi", 0f32..150f32, &mut state.initial_velocity);
+                ui.slider(hash!(), "theta", 0f32..90f32, &mut state.initial_angle);
                 ui.slider(hash!(), "accel", 0f32..20f32, &mut state.acceleration);
                 ui.slider(hash!(), "steps", 1f32..10f32, &mut state.steps);
                 ui.separator();
+                ui.slider(hash!(), "scale", 0.1f32..20f32, &mut state.scale);
                 ui.slider(hash!(), "x offset", 0f32..width, &mut state.x_offset);
                 ui.slider(
                     hash!(),
@@ -52,15 +54,19 @@ async fn main() {
                 );
             });
 
-        let delta = mouse_delta_position();
-        if is_mouse_button_down(MouseButton::Middle) {
-            state.x_offset -= delta.x * width * 0.1;
-            state.y_offset -= delta.y * height * 0.1;
+        let scroll = mouse_wheel().1;
+        if scroll != 0.0 {
+            state.scale += scroll.signum() * 0.1;
+
+            if state.scale < 0.1 {
+                state.scale = 0.1;
+            }
         }
 
         let steps = state.steps.round();
         let mut points = simulate(
             steps as u32,
+            state.scale,
             state.initial_velocity,
             -state.initial_angle,
             state.acceleration,
@@ -72,8 +78,8 @@ async fn main() {
         let mut i = 0;
         for (prev, point) in points.iter().zip(points.iter().skip(1)) {
             i += 1;
-            let (x, y) = (point.x, point.y);
-            let (prev_x, prev_y) = (prev.x, prev.y);
+            let (x, y) = (point.x * state.scale, point.y * state.scale);
+            let (prev_x, prev_y) = (prev.x * state.scale, prev.y * state.scale);
             draw_line(
                 prev_x,
                 prev_y + height / 2.0,
@@ -107,7 +113,7 @@ async fn main() {
             state.initial_angle,
             state.acceleration,
         ) {
-            let position = info.position + vec2(state.x_offset, state.y_offset);
+            let position = info.position * state.scale + vec2(state.x_offset, state.y_offset);
             let max_width = info
                 .text
                 .iter()
@@ -149,7 +155,13 @@ async fn main() {
     }
 }
 
-fn simulate(steps: u32, initial_velocity: f32, initial_angle: f32, acceleration: f32) -> Vec<Vec2> {
+fn simulate(
+    steps: u32,
+    scale: f32,
+    initial_velocity: f32,
+    initial_angle: f32,
+    acceleration: f32,
+) -> Vec<Vec2> {
     let (vx, vy) = (
         initial_velocity * initial_angle.to_radians().cos(),
         initial_velocity * initial_angle.to_radians().sin(),
@@ -158,7 +170,7 @@ fn simulate(steps: u32, initial_velocity: f32, initial_angle: f32, acceleration:
     let mut t = 0;
     let mut out = vec![vec2(0.0, 0.0)];
     while {
-        let [x, y] = out.last().unwrap().to_array();
+        let [x, y] = (*out.last().unwrap() * scale).to_array();
         y < screen_height() && x < screen_width()
     } {
         t += 1;
@@ -195,7 +207,10 @@ fn calc_info(initial_velocity: f32, initial_angle: f32, acceleration: f32) -> Ve
         Info {
             position: vec2(vx * time / 2.0, -max_y),
             color: color::GREEN,
-            text: vec![format!("Delta Y: {max_y:.2}"), format!("Time: {time:.2}")],
+            text: vec![
+                format!("Delta Y: {max_y:.2}"),
+                format!("Time: {:.2}", time / 2.0),
+            ],
         },
     ]
 }
