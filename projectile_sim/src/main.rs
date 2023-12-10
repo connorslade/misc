@@ -4,6 +4,7 @@ use macroquad::{
     math::{vec2, Vec2},
     miniquad::MouseButton,
     shapes::{draw_circle, draw_line},
+    text::{draw_text, measure_text},
     ui::{hash, root_ui, widgets},
     window::{self, clear_background, next_frame, screen_height, screen_width},
 };
@@ -26,7 +27,7 @@ async fn main() {
         initial_velocity: 5.0,
         initial_angle: 45.0,
         acceleration: 9.8,
-        steps: 20.0,
+        steps: 5.0,
     };
 
     loop {
@@ -101,11 +102,48 @@ async fn main() {
             color::BLUE,
         );
 
-        let highest = points
-            .iter()
-            .min_by_key(|point| OrderedFloat(point.y))
-            .unwrap();
-        draw_circle(highest.x, highest.y + height / 2.0, 5.0, color::RED);
+        for info in calc_info(
+            state.initial_velocity,
+            state.initial_angle,
+            state.acceleration,
+        ) {
+            let position = info.position + vec2(state.x_offset, state.y_offset);
+            let max_width = info
+                .text
+                .iter()
+                .map(|text| measure_text(&text, None, 30, 1.0).width)
+                .max_by_key(|&width| OrderedFloat(width))
+                .unwrap_or(0.0);
+
+            draw_line(
+                position.x,
+                position.y + height / 2.0,
+                position.x + 10.0,
+                position.y + height / 2.0 - 20.0,
+                1.0,
+                color::GRAY,
+            );
+            draw_line(
+                position.x + 10.0,
+                position.y + height / 2.0 - 20.0,
+                position.x + 10.0 + max_width,
+                position.y + height / 2.0 - 20.0,
+                1.0,
+                color::GRAY,
+            );
+
+            draw_circle(position.x, position.y + height / 2.0, 5.0, info.color);
+
+            for (i, text) in info.text.iter().enumerate() {
+                draw_text(
+                    text,
+                    position.x + 10.0,
+                    position.y + height / 2.0 - 20.0 * (i as f32 + 1.0) - 10.0,
+                    30.0,
+                    color::WHITE,
+                );
+            }
+        }
 
         next_frame().await
     }
@@ -117,18 +155,47 @@ fn simulate(steps: u32, initial_velocity: f32, initial_angle: f32, acceleration:
         initial_velocity * initial_angle.to_radians().sin(),
     );
 
-    let (mut x, mut y) = (0.0, 0.0);
-    let mut velocity = vy;
-
-    let mut out = vec![vec2(x, y)];
-    while x < screen_width() && y < screen_height() {
-        let delta = (steps as f32).recip();
-
-        velocity += acceleration * delta;
-        y += velocity * delta;
-        x += vx * delta;
-        out.push(vec2(x, y));
+    let mut t = 0;
+    let mut out = vec![vec2(0.0, 0.0)];
+    while {
+        let [x, y] = out.last().unwrap().to_array();
+        y < screen_height() && x < screen_width()
+    } {
+        t += 1;
+        let t = t as f32 / steps as f32;
+        let y = vy * t + 0.5 * acceleration * t.powi(2);
+        out.push(vec2(t * vx, y));
     }
 
     out
+}
+
+struct Info {
+    position: Vec2,
+    color: color::Color,
+    text: Vec<String>,
+}
+
+fn calc_info(initial_velocity: f32, initial_angle: f32, acceleration: f32) -> Vec<Info> {
+    let (vx, vy) = (
+        initial_velocity * initial_angle.to_radians().cos(),
+        initial_velocity * initial_angle.to_radians().sin(),
+    );
+
+    let time = (2.0 * vy / acceleration).abs();
+    let end_x = vx * time;
+    let max_y = vy.powi(2) / (2.0 * acceleration);
+
+    vec![
+        Info {
+            position: vec2(end_x, 0.0),
+            color: color::RED,
+            text: vec![format!("Delta X: {end_x:.2}"), format!("Time: {time:.2}")],
+        },
+        Info {
+            position: vec2(vx * time / 2.0, -max_y),
+            color: color::GREEN,
+            text: vec![format!("Delta Y: {max_y:.2}"), format!("Time: {time:.2}")],
+        },
+    ]
 }
