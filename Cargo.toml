@@ -6,6 +6,7 @@ members = [
     "boatinfo_downloader",
     "coding_bat_exporter",
     "dad_bot",
+    "grade_history",
     "pdf_splitter",
     "projectile_sim",
     "soon",
