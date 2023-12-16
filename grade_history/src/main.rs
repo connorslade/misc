@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use chrono::NaiveDate;
+use dotenvy::dotenv_override;
 use plotters::{
     backend::SVGBackend,
     drawing::IntoDrawingArea,
@@ -14,14 +15,27 @@ use ureq::AgentBuilder;
 const BASE_PAGE: &str = "https://parents.c2.genesisedu.net/bernardsboe";
 const OUTPUT: &str = "output.svg";
 
-const USERNAME: &str = "";
-const PASSWORD: &str = "";
-const STUDENT_ID: &str = "";
+#[derive(Debug)]
+struct Config {
+    username: String,
+    password: String,
+    student_id: String,
+}
+
+impl Config {
+    fn from_env() -> Self {
+        Self {
+            username: std::env::var("USERNAME").unwrap(),
+            password: std::env::var("PASSWORD").unwrap(),
+            student_id: std::env::var("STUDENT_ID").unwrap(),
+        }
+    }
+}
 
 #[derive(Debug)]
 struct Grade {
     date: NaiveDate,
-    assignment: String,
+    _assignment: String,
     grade: (u32, u32),
 }
 
@@ -34,6 +48,9 @@ macro_rules! selector {
 }
 
 fn main() {
+    dotenv_override().unwrap();
+    let config = Config::from_env();
+
     let agent = AgentBuilder::new()
         .user_agent("Mozilla/5.0 (Windows NT 10.0; rv:120.0) Gecko/20100101 Firefox/120.0")
         .build();
@@ -41,11 +58,11 @@ fn main() {
     agent.get(&format!("{BASE_PAGE}/sis/view")).call().unwrap();
     agent
         .get(&format!("{BASE_PAGE}/sis/j_security_check"))
-        .query("j_username", USERNAME)
-        .query("j_password", PASSWORD)
+        .query("j_username", &config.username)
+        .query("j_password", &config.password)
         .call()
         .unwrap();
-    let assignments = agent.get(&format!("https://parents.c2.genesisedu.net/bernardsboe/parents?tab1=studentdata&tab2=gradebook&tab3=listassignments&action=form&studentid={STUDENT_ID}")).call().unwrap();
+    let assignments = agent.get(&format!("{BASE_PAGE}/parents?tab1=studentdata&tab2=gradebook&tab3=listassignments&action=form&studentid={}", config.student_id)).call().unwrap();
 
     let document = Html::parse_document(&assignments.into_string().unwrap());
     let items = document.select(selector!("table.list tr[style]"));
@@ -69,7 +86,7 @@ fn main() {
 
         classes.entry(class).or_insert(Vec::new()).push(Grade {
             date,
-            assignment: assignment.to_owned(),
+            _assignment: assignment.to_owned(),
             grade,
         });
     }
