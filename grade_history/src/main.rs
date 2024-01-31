@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
-use chrono::NaiveDate;
+use chrono::{DateTime, Datelike, Local, NaiveDate};
 use dotenvy::dotenv_override;
+use once_cell::sync::Lazy;
 use plotters::{
     backend::SVGBackend,
     drawing::IntoDrawingArea,
@@ -62,7 +63,7 @@ fn main() {
         .query("j_password", &config.password)
         .call()
         .unwrap();
-    let assignments = agent.get(&format!("{BASE_PAGE}/parents?tab1=studentdata&tab2=gradebook&tab3=listassignments&action=form&studentid={}", config.student_id)).call().unwrap();
+    let assignments = agent.get(&format!("{BASE_PAGE}/parents?tab1=studentdata&tab2=gradebook&tab3=listassignments&studentid={}&action=form&dateRange=allMP", config.student_id)).call().unwrap();
 
     let document = Html::parse_document(&assignments.into_string().unwrap());
     let items = document.select(selector!("table.list tr[style]"));
@@ -122,14 +123,14 @@ fn main() {
 
     chart
         .configure_mesh()
-        .x_labels(30)
-        .y_labels(10)
+        .x_labels(10)
+        .y_labels(20)
         .y_desc("Grade (%)")
         .x_desc("Date")
         .draw()
         .unwrap();
 
-    // Draw dashed line at 90%
+    // Draw line at 90%
     chart
         .draw_series(LineSeries::new(
             vec![(first_date, 90.0), (last_date, 90.0)],
@@ -179,7 +180,17 @@ fn parse_grade(grade: &str) -> Option<(u32, u32)> {
 
 fn parse_date(date: &str) -> Option<NaiveDate> {
     let (month, day) = date.split_once("/")?;
-    NaiveDate::from_ymd_opt(2023, month.parse().ok()?, day.parse().ok()?)
+    let month = month.parse().ok()?;
+    let day = day.parse().ok()?;
+
+    static LOCAL: Lazy<DateTime<Local>> = Lazy::new(|| Local::now());
+    let mut year = LOCAL.year();
+
+    if month > 7 && LOCAL.month() < 7 {
+        year -= 1;
+    }
+
+    NaiveDate::from_ymd_opt(year, month, day)
 }
 
 fn get_date_range(classes: &HashMap<&str, Vec<Grade>>) -> (NaiveDate, NaiveDate) {
