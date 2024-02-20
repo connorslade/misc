@@ -13,7 +13,9 @@ members = [
     "spotify_stats",
     "study",
     "test_score_scraper",
+    "text_gen",
     "tgm_metadetector",
+    "unfocused_advance",
     "world_wide_west",
-    "youtube_stats",
+    "youtube_stats"
 ]
