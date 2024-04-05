@@ -7,6 +7,7 @@ members = [
     "coding_bat_exporter",
     "dad_bot",
     "grade_history",
+    "particle_sim",
     "pdf_splitter",
     "projectile_sim",
     "soon",
