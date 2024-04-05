@@ -1,6 +1,6 @@
 use macroquad::{
     color::{self, Color},
-    input::{is_mouse_button_down, mouse_delta_position, mouse_position, MouseButton},
+    input::{is_mouse_button_down, mouse_position, MouseButton},
     math::{vec2, Vec2},
     rand,
     shapes::draw_circle,
