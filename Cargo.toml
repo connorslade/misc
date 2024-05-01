@@ -6,6 +6,7 @@ members = [
     "boatinfo_downloader",
     "coding_bat_exporter",
     "dad_bot",
+    "duckchat",
     "grade_history",
     "particle_sim",
     "pdf_splitter",
@@ -18,5 +19,5 @@ members = [
     "tgm_metadetector",
     "unfocused_advance",
     "world_wide_west",
-    "youtube_stats"
+    "youtube_stats",
 ]
