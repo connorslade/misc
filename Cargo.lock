@@ -4091,6 +4091,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "wave_sim"
+version = "0.1.0"
+dependencies = [
+ "macroquad",
+]
+
+[[package]]
 name = "web-sys"
 version = "0.3.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"

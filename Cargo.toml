@@ -20,4 +20,5 @@ members = [
     "unfocused_advance",
     "world_wide_west",
     "youtube_stats",
+    "wave_sim"
 ]
