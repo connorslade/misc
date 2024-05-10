@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use macroquad::{
-    color::{Color, BLACK, WHITE},
+    color::{Color, BLACK},
     input::{is_key_pressed, is_mouse_button_down, mouse_position, KeyCode, MouseButton},
     math::Vec2,
     text::draw_text,
@@ -21,10 +21,12 @@ async fn main() {
     let texture = Texture2D::from_image(&image);
 
     loop {
+        #[cfg(not(target_arch = "wasm32"))]
         let instant = Instant::now();
-        for _ in 0..2 {
+        for _ in 0..3 {
             state.step();
         }
+        #[cfg(not(target_arch = "wasm32"))]
         let update_time = instant.elapsed().as_millis();
 
         for y in 0..state.height {
@@ -76,8 +78,9 @@ async fn main() {
         draw_texture(&texture, 0.0, 0.0, Color::from_hex(0xFFFFFF));
 
         let delta = get_frame_time();
-        draw_text(&format!("FPS: {:.2}", 1.0 / delta), 10.0, 20.0, 20.0, WHITE);
-        draw_text(&format!("MSPT: {}ms", update_time), 10.0, 50.0, 20.0, WHITE);
+        draw_text(&format!("FPS: {:.2}", 1.0 / delta), 10.0, 20.0, 20.0, BLACK);
+        #[cfg(not(target_arch = "wasm32"))]
+        draw_text(&format!("MSPT: {}ms", update_time), 10.0, 50.0, 20.0, BLACK);
 
         next_frame().await
     }
