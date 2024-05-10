@@ -32,7 +32,7 @@ async fn main() {
         for y in 0..state.height {
             for x in 0..state.width {
                 if x == 300
-                    && !((y < 203 - 10 && y > 203 - 10 - 10) || (y > 203 + 10 && y < 203 + 10 + 10))
+                    && !((y < 203 - 20 && y > 203 - 20 - 10) || (y > 203 + 20 && y < 203 + 20 + 10))
                 {
                     image.set_pixel(x, y, BLACK);
                     continue;
@@ -89,6 +89,8 @@ async fn main() {
 struct State {
     boards: [Board; 3],
     active: usize,
+    tick: usize,
+
     width: u32,
     height: u32,
 }
@@ -101,22 +103,23 @@ impl State {
             Board::new(width, height), // last
         ];
 
-        let center = Vec2::new(width as f32 / 2.0, height as f32 / 2.0);
-        for board in boards.iter_mut().skip(1) {
-            for y in 0..height {
-                for x in 0..width {
-                    // let pos = Vec2::new(x as f32, y as f32);
-                    // let dist = (center - pos).length();
-                    let dist = (500.0 - x as f32).abs();
+        // let center = Vec2::new(width as f32 / 2.0, height as f32 / 2.0);
+        // for board in boards.iter_mut().skip(1) {
+        //     for y in 0..height {
+        //         for x in 0..width {
+        //             // let pos = Vec2::new(x as f32, y as f32);
+        //             // let dist = (center - pos).length();
+        //             let dist = (500.0 - x as f32).abs();
 
-                    *board.get_mut(x, y) = 2.0 * (-dist).exp();
-                }
-            }
-        }
+        //             *board.get_mut(x, y) = 2.0 * (-dist).exp();
+        //         }
+        //     }
+        // }
 
         Self {
             boards,
             active: 2,
+            tick: 0,
             width,
             height,
         }
@@ -137,10 +140,14 @@ impl State {
     ///
     /// next(x, y) = 2 * current(x, y) - previous(x, y) + C * (current(x-1, y) + current(x+1, y) + current(x, y-1) + current(x, y+1) - 4 * current(x, y))
     pub fn step(&mut self) {
+        self.tick += 1;
         self.active = (self.active + 1) % 3;
 
         let (width, height) = (self.width, self.height);
+        let tick = self.tick;
         let (next, last, last2) = self.get_boards();
+
+        let center = Vec2::new(width as f32 / 2.0 + 300.0, height as f32 / 2.0);
 
         for y in 1..height - 1 {
             for x in 1..width - 1 {
@@ -152,11 +159,13 @@ impl State {
                         + last.get(x, y - 1)
                         + last.get(x, y + 1)
                         - 4.0 * last.get(x, y));
+                let dist = (center - Vec2::new(x as f32, y as f32)).length();
+                sum += 0.001 * (-dist).exp() * (tick as f32 / 30.0).cos();
 
                 *next.get_mut(x, y) = sum;
 
                 if x == 300
-                    && !((y < 203 - 10 && y > 203 - 10 - 10) || (y > 203 + 10 && y < 203 + 10 + 10))
+                    && !((y < 203 - 20 && y > 203 - 20 - 10) || (y > 203 + 20 && y < 203 + 20 + 10))
                 {
                     *next.get_mut(x, y) = 0.0;
                 }
