@@ -1,5 +1,6 @@
-use std::io::{stdout, BufWriter, Write};
+use std::io::BufWriter;
 
+use indicatif::ProgressBar;
 use openh264::{
     self,
     encoder::Encoder,
@@ -17,12 +18,13 @@ pub fn render_video() {
 
     let mut state = State::new(SIZE.0 as u32, SIZE.1 as u32);
 
-    for i in 0..1000 {
-        if i % 100 == 0 {
-            print!("\rFrame {}", i);
-            stdout().flush().unwrap();
-        }
-
+    let progress = ProgressBar::new(5000).with_style(
+        indicatif::ProgressStyle::default_bar()
+            .template("{spinner} {wide_bar} {pos:>7}/{len:7} {per_sec} {eta} {msg}")
+            .unwrap(),
+    );
+    for _ in 0..5000 {
+        progress.inc(1);
         let mut image = ImageBuffer::new(SIZE.0, SIZE.1);
         for y in 0..state.height as usize {
             for x in 0..state.width as usize {

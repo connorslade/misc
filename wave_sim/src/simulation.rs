@@ -19,18 +19,18 @@ impl State {
             Board::new(width, height), // last
         ];
 
-        // let center = Vec2::new(width as f32 / 2.0, height as f32 / 2.0);
-        // for board in boards.iter_mut().skip(1) {
-        //     for y in 0..height {
-        //         for x in 0..width {
-        //             // let pos = Vec2::new(x as f32, y as f32);
-        //             // let dist = (center - pos).length();
-        //             let dist = (500.0 - x as f32).abs();
+        let center = Vec2::new(width as f32 / 2.0, height as f32 / 2.0);
+        for board in boards.iter_mut().skip(1) {
+            for y in 0..height {
+                for x in 0..width {
+                    // let pos = Vec2::new(x as f32, y as f32);
+                    // let dist = (center - pos).length();
+                    let dist = (500.0 - x as f32).abs();
 
-        //             *board.get_mut(x, y) = 2.0 * (-dist).exp();
-        //         }
-        //     }
-        // }
+                    *board.get_mut(x, y) = 2.0 * (-dist).exp();
+                }
+            }
+        }
 
         Self {
             boards,
@@ -63,7 +63,7 @@ impl State {
         let tick = self.tick;
         let (next, last, last2) = self.get_boards();
 
-        let center = Vec2::new(width as f32 / 2.0, height as f32 / 2.0);
+        // let center = Vec2::new(width as f32 / 2.0, height as f32 / 2.0);
 
         for y in 1..height - 1 {
             for x in 1..width - 1 {
@@ -75,9 +75,9 @@ impl State {
                         + last.get(x, y - 1)
                         + last.get(x, y + 1)
                         - 4.0 * last.get(x, y));
-                let dist = (center - Vec2::new(x as f32, y as f32)).length();
+                // let dist = (center - Vec2::new(x as f32, y as f32)).length() / 10.0;
                 // let dist = (500.0 - x as f32).abs();
-                sum += 0.002 * (-dist).exp() * (tick as f32 / 30.0).cos();
+                // sum += 0.002 * (-dist).exp() * (tick as f32 / 30.0).cos();
 
                 *next.get_mut(x, y) = sum;
 
