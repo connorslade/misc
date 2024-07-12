@@ -14,12 +14,6 @@
 #define METRIC(name, symbol, power)                                            \
   { name, symbol, power }
 
-const char HEADER[] = "*********************\n"
-                      "* Assignment01      *\n"
-                      "* By Connor Slade   *\n"
-                      "* slade4@purdue.edu *\n"
-                      "*********************\n";
-
 const char HELP[] = "Convert between units like this: \"12 mi => ft\".\n"
                     "Use \"quit\" to exit the program. Also note that\n"
                     "metric prefixes are supported on metric units.\n";
@@ -219,7 +213,6 @@ char *dimention_name(Dimention dimention) {
 }
 
 int main() {
-  puts(HEADER);
   puts(HELP);
 
   size_t length = 35;
