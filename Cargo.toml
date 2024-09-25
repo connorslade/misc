@@ -1,7 +1,6 @@
 [workspace]
 resolver = "2"
 members = [
-    "audio_volume",
     "badge_inventory",
     "boatinfo_downloader",
     "coding_bat_exporter",
