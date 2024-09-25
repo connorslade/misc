@@ -42,7 +42,7 @@ impl GeocodeCache {
 }
 
 pub fn geocode(
-    geocode: Opencage,
+    geocode: &Opencage,
     cache: &mut GeocodeCache,
     locations: &[&str],
 ) -> Vec<Option<GeocodeResult>> {
