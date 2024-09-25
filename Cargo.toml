@@ -6,6 +6,7 @@ members = [
     "boatinfo_downloader",
     "coding_bat_exporter",
     "dad_bot",
+    "distant_locations",
     "duckchat",
     "grade_history",
     "particle_sim",
