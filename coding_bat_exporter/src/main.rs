@@ -7,7 +7,12 @@ use lazy_static::lazy_static;
 use scraper::{Html, Selector};
 use serde::Serialize;
 use serde_json::json;
+use types::{Type, Types};
 use ureq::AgentBuilder;
+
+mod case;
+mod types;
+use case::CaseParser;
 
 lazy_static! {
     // Author Page
@@ -46,7 +51,8 @@ struct Args {
 struct Problem {
     document: String,
     hint: String,
-    cases: Vec<(Vec<String>, String)>,
+    types: (Vec<Types>, Types),
+    cases: Vec<(Vec<Type>, Type)>,
     code: String,
     tags: Vec<String>,
 }
@@ -102,38 +108,35 @@ fn main() {
             .unwrap();
         let problem = Html::parse_document(&problem_html);
 
-        let document = problem
-            .select(&PROBLEM_DOC_SELECTOR)
-            .next()
-            .unwrap()
-            .inner_html();
-        let hint = problem
-            .select(&PROBLEM_HINT_SELECTOR)
-            .next()
-            .unwrap()
-            .inner_html();
-        let cases = problem
-            .select(&PROBLEM_CASE_SELECTOR)
-            .next()
-            .unwrap()
-            .inner_html();
-        let code = problem
-            .select(&PROBLEM_CODE_SELECTOR)
-            .next()
-            .unwrap()
-            .inner_html();
-        let tags = problem
-            .select(&PROBLEM_TAGS_SELECTOR)
-            .next()
-            .unwrap()
-            .inner_html();
+        let get_inner = |selector| {
+            html_escape::decode_html_entities(
+                &problem.select(selector).next().unwrap().inner_html(),
+            )
+            .into_owned()
+        };
+
+        let document = get_inner(&*PROBLEM_DOC_SELECTOR);
+        let hint = get_inner(&*PROBLEM_HINT_SELECTOR);
+        let cases = get_inner(&*PROBLEM_CASE_SELECTOR);
+        let code = get_inner(&*PROBLEM_CODE_SELECTOR);
+        let tags = get_inner(&*PROBLEM_TAGS_SELECTOR);
+
+        let cases = cases
+            .lines()
+            .map(|x| CaseParser::new(x).parse())
+            .collect::<Vec<_>>();
+        let types = (
+            cases[0].0.iter().map(|x| x.as_types()).collect(),
+            cases[0].1.as_types(),
+        );
 
         final_problems.insert(
             i,
             Problem {
                 document,
                 hint,
-                cases: cases.lines().map(case_parser).collect(),
+                types,
+                cases,
                 code,
                 tags: tags.split(' ').map(str::to_owned).collect(),
             },
@@ -147,32 +150,4 @@ fn main() {
     println!("[*] Saving");
     fs::write(args.out_file, json!(final_problems).to_string()).unwrap();
     println!("[*] Done!");
-}
-
-fn case_parser(inp: &str) -> (Vec<String>, String) {
-    let mut args = Vec::new();
-    let mut in_quotes = false;
-    let mut in_array = false;
-    let mut working = String::new();
-
-    for i in inp.chars() {
-        match i {
-            '"' if !in_array => in_quotes ^= true,
-            '{' if !in_array && !in_quotes => {
-                in_array = true;
-                working.push('{');
-            }
-            '}' if in_array && !in_quotes => {
-                in_array = false;
-                working.push('}');
-            }
-            ',' if !in_quotes && !in_array => {
-                args.push(working.trim().to_owned());
-                working.clear();
-            }
-            _ => working.push(i),
-        }
-    }
-
-    (args, working.trim().to_owned())
 }
