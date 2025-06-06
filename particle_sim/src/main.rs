@@ -43,7 +43,12 @@ async fn main() {
                 (rand::rand() as f32 / u32::MAX as f32) * height,
             ),
             vel: Vec2::ZERO,
-            charge: (rand::rand() as f32 / u32::MAX as f32) * 2.0 - 1.0,
+            // charge: (rand::rand() as f32 / u32::MAX as f32) * 2.0 - 1.0,
+            charge: if rand::rand() > u32::MAX / 2 {
+                1.0
+            } else {
+                -1.0
+            },
         });
     }
 
