@@ -120,7 +120,7 @@ end
 local function on_playback()
     local slide = current_cue()
     if slide ~= LAST_SLIDE then
-        local loop = slide <= #CUES and CUES[slide].loop
+        local loop = slide >= 1 and slide <= #CUES and CUES[slide].loop
         if loop and not DONT_PAUSE then
             mp.set_property_number("playback-time", loop)
             return
